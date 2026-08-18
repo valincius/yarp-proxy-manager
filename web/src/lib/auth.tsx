@@ -1,4 +1,4 @@
-import { createContext, createEffect, createSignal, useContext, type ParentProps } from 'solid-js';
+import { createContext, createSignal, useContext, type ParentProps } from 'solid-js';
 import { api, ApiError, fetchXsrfToken } from './api';
 import type { Session } from './types';
 
@@ -15,9 +15,10 @@ export function AuthProvider(props: ParentProps) {
   const [session, setSession] = createSignal<Session | null>(null);
   const [ready, setReady] = createSignal(false);
 
-  createEffect(() => {
-    void refreshSession();
-  });
+  // One-shot side effect: fetch the session on mount. Reads no signals, so
+  // under Solid 2's compute/effect split it must be called directly rather
+  // than wrapped in createEffect.
+  void refreshSession();
 
   async function refreshSession(): Promise<void> {
     try {

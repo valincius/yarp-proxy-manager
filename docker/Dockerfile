@@ -23,7 +23,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:10.0
 WORKDIR /app
 ENV Data__Directory=/data
 COPY --from=build /app/publish .
-EXPOSE 80 81
+EXPOSE 80 443 81
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD curl -fs http://127.0.0.1:81/healthz || exit 1
 ENTRYPOINT ["dotnet", "ProxyManager.Api.dll"]

@@ -12,8 +12,8 @@ export default function AdminLayout(props: ParentProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  createEffect(() => {
-    if (auth.ready() && !auth.session()) {
+  createEffect(() => [ auth.ready(), auth.session() ], (ready, session) => {
+    if (ready && !session) {
       navigate('/login', { replace: true });
     }
   });

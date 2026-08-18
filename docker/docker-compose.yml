@@ -8,8 +8,8 @@ services:
     restart: unless-stopped
     ports:
       - "80:80" # reverse proxy (HTTP)
+      - "443:443" # reverse proxy (HTTPS, SNI certificate selection)
       - "81:81" # admin UI + API
-      # 443 (HTTPS) is mapped once the certificate subsystem lands (Phase 2).
       # Streams (TCP/UDP) additionally publish their listen ports here (Phase 4).
     environment:
       - Admin__Email=admin@example.com

@@ -42,6 +42,7 @@ public sealed record HostConfig(
     bool BlockCommonExploits,
     bool ForceHttps,
     bool Http2Support,
+    bool CertificateValid,
     IReadOnlyList<LocationConfig> Locations,
     IReadOnlyList<HeaderConfig> RequestHeaders,
     IReadOnlyList<HeaderConfig> ResponseHeaders);

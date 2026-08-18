@@ -19,6 +19,12 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
 
     public DbSet<ProxyHeader> ProxyHeaders => Set<ProxyHeader>();
 
+    public DbSet<Certificate> Certificates => Set<Certificate>();
+
+    public DbSet<DnsCredential> DnsCredentials => Set<DnsCredential>();
+
+    public DbSet<AcmeAccount> AcmeAccounts => Set<AcmeAccount>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -61,6 +67,38 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
             entity.Property(x => x.Action).HasMaxLength(10).IsRequired();
             entity.Property(x => x.Name).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Value).HasMaxLength(2000);
+        });
+
+        builder.Entity<Certificate>(entity =>
+        {
+            entity.ToTable("Certificates");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Domains).HasConversion(
+                v => JsonSerializer.Serialize(v),
+                v => JsonSerializer.Deserialize<List<string>>(v) ?? new List<string>());
+            entity.Property(x => x.PfxPath).HasMaxLength(500);
+            entity.Property(x => x.EncryptedPfxPassword).HasMaxLength(2000);
+            entity.Property(x => x.ChallengeType).HasMaxLength(10);
+            entity.Property(x => x.LastRenewalError).HasMaxLength(2000);
+        });
+
+        builder.Entity<DnsCredential>(entity =>
+        {
+            entity.ToTable("DnsCredentials");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Provider).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.EncryptedApiToken).HasMaxLength(4000).IsRequired();
+        });
+
+        builder.Entity<AcmeAccount>(entity =>
+        {
+            entity.ToTable("AcmeAccounts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Email).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.EncryptedAccountKey).HasMaxLength(8000).IsRequired();
+            entity.Property(x => x.DirectoryUrl).HasMaxLength(500).IsRequired();
         });
     }
 }

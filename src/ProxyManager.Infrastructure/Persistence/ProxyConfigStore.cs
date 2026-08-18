@@ -17,6 +17,11 @@ public sealed class ProxyConfigStore(ProxyDbContext db) : IProxyConfigStore
             .Include(h => h.ResponseHeaders)
             .ToListAsync(cancellationToken);
 
+        var now = DateTimeOffset.UtcNow;
+        var certificates = (await db.Certificates.AsNoTracking().ToListAsync(cancellationToken))
+            .Where(c => c.Status == CertificateStatus.Issued && c.NotAfter is { } notAfter && notAfter > now)
+            .ToDictionary(c => c.Id);
+
         return hosts
             .Select(h => new HostConfig(
                 h.Id,
@@ -28,6 +33,7 @@ public sealed class ProxyConfigStore(ProxyDbContext db) : IProxyConfigStore
                 h.BlockCommonExploits,
                 h.ForceHttps,
                 h.Http2Support,
+                h.CertificateId is { } certificateId && certificates.ContainsKey(certificateId),
                 h.Locations.OrderBy(l => l.Order).Select(ToLocation).ToList(),
                 h.RequestHeaders.Select(ToHeader).ToList(),
                 h.ResponseHeaders.Select(ToHeader).ToList()))

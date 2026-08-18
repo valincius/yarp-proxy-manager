@@ -1,4 +1,6 @@
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.DataProtection;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -6,8 +8,12 @@ using Microsoft.Extensions.FileProviders;
 using ProxyManager.Api.Middleware;
 using ProxyManager.Api.Routing;
 using ProxyManager.Application;
+using ProxyManager.Application.Certificates;
 using ProxyManager.Application.Proxy;
 using ProxyManager.Application.ProxyHosts;
+using ProxyManager.Certificates;
+using ProxyManager.Certificates.Acme;
+using ProxyManager.Infrastructure.Dns;
 using ProxyManager.Infrastructure.Persistence;
 using ProxyManager.Proxy;
 using Serilog;
@@ -41,6 +47,10 @@ public partial class Program
         // --- Data directory ---
         var dataDir = DataDirectory(builder);
         Directory.CreateDirectory(Path.Combine(dataDir, "logs"));
+
+        // --- Data Protection (encrypts certificate passwords, DNS tokens, the ACME key) ---
+        builder.Services.AddDataProtection()
+            .PersistKeysToFileSystem(new DirectoryInfo(Path.Combine(dataDir, "dp-keys")));
 
         // --- Database ---
         var connectionString = builder.Configuration.GetConnectionString("ProxyDb")
@@ -97,6 +107,34 @@ public partial class Program
         builder.Services.AddScoped<ProxyHostValidator>();
         builder.Services.AddScoped<ProxyHostService>();
 
+        // --- Certificates subsystem ---
+        builder.Services.AddHttpClient("CloudflareDns", client => client.Timeout = TimeSpan.FromSeconds(30));
+        builder.Services.AddSingleton<ForceHttpsIndex>();
+        builder.Services.AddSingleton<CertificateFileStore>(_ => new CertificateFileStore(dataDir));
+        builder.Services.AddSingleton<Http01ChallengeStore>();
+        builder.Services.AddSingleton<SniCertificateSelector>();
+        builder.Services.AddScoped<ICertificateRepository, CertificateRepository>();
+        builder.Services.AddScoped<ISecretProtector, SecretProtector>();
+        builder.Services.AddScoped<IDnsChallengeProviderFactory, DnsChallengeProviderFactory>();
+        builder.Services.AddTransient<IAcmeClient, CertesAcmeClient>();
+        builder.Services.AddScoped<IssueCertificateValidator>();
+        builder.Services.AddScoped<UploadCertificateValidator>();
+        builder.Services.AddScoped<DnsCredentialValidator>();
+        builder.Services.AddScoped<AcmeSettingsValidator>();
+        builder.Services.AddScoped<CertificateManager>();
+        builder.Services.AddHostedService<CertificateRenewalWorker>();
+
+        // --- Kestrel HTTPS with SNI certificate selection ---
+        var kestrelServices = builder.Services.BuildServiceProvider();
+        builder.WebHost.ConfigureKestrel(kestrel =>
+        {
+            kestrel.ConfigureHttpsDefaults(https =>
+            {
+                https.ServerCertificateSelector = (connectionContext, name) =>
+                    kestrelServices.GetRequiredService<SniCertificateSelector>().Select(connectionContext, name);
+            });
+        });
+
         // --- YARP (empty initial config; ProxyConfigReloader swaps in the real routes) ---
         builder.Services.AddReverseProxy().LoadFromMemory([], []);
 
@@ -141,6 +179,7 @@ public partial class Program
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
         app.UseSerilogRequestLogging();
+        app.UseMiddleware<AcmeChallengeResponderMiddleware>();
 
         // --- Pipeline layout (two Kestrel endpoint groups, one pipeline) ---
         // 1. Controller routing is global but restricted to the admin port by AdminPortConvention,
@@ -186,8 +225,10 @@ public partial class Program
         });
 
         // Step 3 — reverse proxy (proxy port only).
+        var httpsPort = GetEndpointPort(builder.Configuration, "Kestrel:Endpoints:Https:Url", 443);
         app.UseWhen(ctx => !IsAdminPort(ctx, adminPort), proxy =>
         {
+            proxy.UseMiddleware<ForceHttpsRedirectMiddleware>(httpsPort);
             proxy.UseRouting();
             proxy.UseEndpoints(endpoints => endpoints.MapReverseProxy());
         });
@@ -198,25 +239,29 @@ public partial class Program
     private static bool IsAdminPort(HttpContext context, int adminPort)
         => context.Connection.LocalPort == adminPort || context.Connection.LocalPort == 0;
 
-    /// <summary>Runs startup work: applies migrations, seeds the admin user, loads proxy config.</summary>
+    /// <summary>Runs startup work: applies migrations, seeds the admin user, loads proxy config + certificates.</summary>
     public static async Task InitializeAsync(WebApplication app)
     {
         using var scope = app.Services.CreateScope();
         var services = scope.ServiceProvider;
         await MigrateAndSeedAsync(services);
         await services.GetRequiredService<ProxyConfigReloader>().ReloadAsync();
+        await services.GetRequiredService<SniCertificateSelector>().ReloadAsync();
     }
 
     private static string DataDirectory(WebApplicationBuilder builder) =>
         builder.Configuration["Data:Directory"]
         ?? Path.Combine(builder.Environment.ContentRootPath, "data");
 
-    private static int GetAdminPort(IConfiguration configuration)
+    private static int GetAdminPort(IConfiguration configuration) =>
+        GetEndpointPort(configuration, "Kestrel:Endpoints:Admin:Url", 81);
+
+    private static int GetEndpointPort(IConfiguration configuration, string urlKey, int defaultPort)
     {
-        var url = configuration["Kestrel:Endpoints:Admin:Url"] ?? "http://0.0.0.0:81";
-        return Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Port > 0
+        var url = configuration[urlKey];
+        return !string.IsNullOrWhiteSpace(url) && Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Port > 0
             ? uri.Port
-            : 81;
+            : defaultPort;
     }
 
     private static async Task MigrateAndSeedAsync(IServiceProvider services)

@@ -14,6 +14,7 @@ public sealed class ProxyConfigReloader
 {
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly InMemoryConfigProvider _provider;
+    private readonly ForceHttpsIndex _forceHttpsIndex;
     private readonly ILogger<ProxyConfigReloader> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _sync = new();
@@ -22,10 +23,12 @@ public sealed class ProxyConfigReloader
     public ProxyConfigReloader(
         IServiceScopeFactory scopeFactory,
         InMemoryConfigProvider provider,
+        ForceHttpsIndex forceHttpsIndex,
         ILogger<ProxyConfigReloader> logger)
     {
         _scopeFactory = scopeFactory;
         _provider = provider;
+        _forceHttpsIndex = forceHttpsIndex;
         _logger = logger;
     }
 
@@ -79,6 +82,11 @@ public sealed class ProxyConfigReloader
             var hosts = await store.GetEnabledHostsAsync(cancellationToken);
             var (routes, clusters) = YarpConfigBuilder.Build(hosts);
             _provider.Update(routes, clusters);
+
+            _forceHttpsIndex.Update(hosts
+                .Where(h => h.ForceHttps && h.CertificateValid)
+                .SelectMany(h => h.Domains));
+
             _logger.LogInformation(
                 "Proxy configuration reloaded: {RouteCount} routes, {ClusterCount} clusters.",
                 routes.Count,

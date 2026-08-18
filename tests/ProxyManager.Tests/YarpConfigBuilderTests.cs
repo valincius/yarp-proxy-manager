@@ -13,7 +13,7 @@ public sealed class YarpConfigBuilderTests
         IReadOnlyList<LocationConfig>? locations = null,
         IReadOnlyList<HeaderConfig>? requestHeaders = null,
         IReadOnlyList<HeaderConfig>? responseHeaders = null) =>
-        new(id, domains, "http", "10.0.0.5", 3000, true, true, false, true,
+        new(id, domains, "http", "10.0.0.5", 3000, true, true, false, true, true,
             locations ?? [], requestHeaders ?? [], responseHeaders ?? []);
 
     [Fact]

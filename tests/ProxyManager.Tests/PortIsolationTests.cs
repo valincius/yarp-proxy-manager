@@ -23,6 +23,7 @@ public sealed class PortIsolationTests
 {
     private const int AdminPort = 51991;
     private const int ProxyPort = 51992;
+    private const int HttpsPort = 51993;
 
     [Fact]
     public async Task AdminAndProxyPipelines_AreSeparatedByPort()
@@ -36,6 +37,7 @@ public sealed class PortIsolationTests
             builder.Configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["Kestrel:Endpoints:ProxyHttp:Url"] = $"http://127.0.0.1:{ProxyPort}",
+                ["Kestrel:Endpoints:Https:Url"] = $"https://127.0.0.1:{HttpsPort}",
                 ["Kestrel:Endpoints:Admin:Url"] = $"http://127.0.0.1:{AdminPort}",
             });
             // In-process hosting from the test assembly: the app's entry assembly is the
