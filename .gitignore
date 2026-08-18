@@ -1,0 +1,30 @@
+# --- Node / frontend ---
+node_modules/
+web/dist/
+*.tsbuildinfo
+
+# --- .NET ---
+bin/
+obj/
+*.user
+*.suo
+
+# --- Runtime data (SQLite, certs, Data Protection keys, logs) ---
+data/
+*.db
+*.db-shm
+*.db-wal
+*.pfx
+
+# --- Environment ---
+.env
+.env*.local
+
+# --- IDEs / editors ---
+.vs/
+.idea/
+.vscode/
+
+# --- System ---
+.DS_Store
+Thumbs.db

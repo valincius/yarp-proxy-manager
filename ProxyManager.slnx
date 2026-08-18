@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ProxyManager.Api/ProxyManager.Api.csproj" />
+    <Project Path="src/ProxyManager.Application/ProxyManager.Application.csproj" />
+    <Project Path="src/ProxyManager.Certificates/ProxyManager.Certificates.csproj" />
+    <Project Path="src/ProxyManager.Domain/ProxyManager.Domain.csproj" />
+    <Project Path="src/ProxyManager.Infrastructure/ProxyManager.Infrastructure.csproj" />
+    <Project Path="src/ProxyManager.Proxy/ProxyManager.Proxy.csproj" />
+    <Project Path="src/ProxyManager.Streams/ProxyManager.Streams.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ProxyManager.Tests/ProxyManager.Tests.csproj" />
+  </Folder>
+</Solution>
