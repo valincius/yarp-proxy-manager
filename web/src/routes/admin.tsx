@@ -12,7 +12,10 @@ export default function AdminLayout(props: ParentProps) {
   const navigate = useNavigate();
   const location = useLocation();
 
-  createEffect(() => [ auth.ready(), auth.session() ], (ready, session) => {
+  // In Solid 2's compute/effect split the effect fn receives (next, prev) —
+  // next is the compute result itself, so destructure the [ready, session]
+  // tuple instead of treating the params as (ready, session).
+  createEffect(() => [ auth.ready(), auth.session() ], ([ready, session]) => {
     if (ready && !session) {
       navigate('/login', { replace: true });
     }
@@ -35,6 +38,9 @@ export default function AdminLayout(props: ParentProps) {
               </a>
               <a href="/admin/hosts" class={isActive('/admin/hosts') ? activeNav : inactiveNav}>
                 Proxy Hosts
+              </a>
+              <a href="/admin/certificates" class={isActive('/admin/certificates') ? activeNav : inactiveNav}>
+                SSL Certificates
               </a>
             </nav>
             <div class="mt-auto border-t border-slate-800 p-4 text-xs text-slate-400">

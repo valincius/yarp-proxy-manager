@@ -9,14 +9,18 @@ using ProxyManager.Infrastructure.Persistence;
 
 namespace ProxyManager.Tests;
 
-/// <summary>WebApplicationFactory with an in-memory SQLite database (TestServer).</summary>
+/// <summary>WebApplicationFactory with an in-memory SQLite database (TestServer).
+/// Uses a shared-cache in-memory database with a keeper connection so concurrent scopes
+/// (requests + the certificate renewal worker) each get their own connection.</summary>
 public sealed class ProxyApiFactory : WebApplicationFactory<Program>
 {
-    private readonly SqliteConnection _connection = new("Data Source=:memory:");
+    private readonly string _connectionString = $"Data Source=file:pm-test-{Guid.NewGuid():N}?mode=memory&cache=shared";
+    private readonly SqliteConnection _keeper;
 
     public ProxyApiFactory()
     {
-        _connection.Open();
+        _keeper = new SqliteConnection(_connectionString);
+        _keeper.Open();
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
@@ -30,7 +34,7 @@ public sealed class ProxyApiFactory : WebApplicationFactory<Program>
                 services.Remove(descriptor);
             }
 
-            services.AddDbContext<ProxyDbContext>(o => o.UseSqlite(_connection));
+            services.AddDbContext<ProxyDbContext>(o => o.UseSqlite(_connectionString));
         });
     }
 
@@ -39,7 +43,7 @@ public sealed class ProxyApiFactory : WebApplicationFactory<Program>
         base.Dispose(disposing);
         if (disposing)
         {
-            _connection.Dispose();
+            _keeper.Dispose();
         }
     }
 }

@@ -29,8 +29,9 @@ public sealed class PortIsolationTests
     public async Task AdminAndProxyPipelines_AreSeparatedByPort()
     {
         await using var upstream = await TestUpstream.StartAsync();
-        await using var sqlite = new SqliteConnection("Data Source=:memory:");
-        sqlite.Open();
+        var connectionString = $"Data Source=file:pm-port-{Guid.NewGuid():N}?mode=memory&cache=shared";
+        await using var keeper = new SqliteConnection(connectionString);
+        keeper.Open();
 
         var app = Program.BuildApp(["--environment", "Development"], builder =>
         {
@@ -51,10 +52,10 @@ public sealed class PortIsolationTests
                 builder.Services.Remove(descriptor);
             }
 
-            builder.Services.AddDbContext<ProxyDbContext>(o => o.UseSqlite(sqlite));
+            builder.Services.AddDbContext<ProxyDbContext>(o => o.UseSqlite(connectionString));
         });
-        await app.StartAsync();
         await Program.InitializeAsync(app);
+        await app.StartAsync();
 
         var adminBase = $"http://127.0.0.1:{AdminPort}";
         var proxyBase = $"http://127.0.0.1:{ProxyPort}";

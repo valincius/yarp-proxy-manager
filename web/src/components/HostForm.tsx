@@ -1,6 +1,12 @@
-import { createSignal, For, Show, type ParentProps } from 'solid-js';
-import { ApiError } from '../lib/api';
-import type { ProxyHost, ProxyHostInput } from '../lib/types';
+import { createSignal, createMemo, For, Show, type ParentProps } from 'solid-js';
+import { query } from '@solidjs/router';
+import { api, ApiError } from '../lib/api';
+import type { CertificateDto, ProxyHost, ProxyHostInput } from '../lib/types';
+
+const loadCertificates = query(
+  async (): Promise<CertificateDto[]> => api.get('/certificates'),
+  'host-form-certs',
+);
 
 interface HostFormProps {
   initial?: ProxyHost;
@@ -46,6 +52,8 @@ export default function HostForm(props: HostFormProps) {
   const [blockExploits, setBlockExploits] = createSignal(props.initial?.blockCommonExploits ?? true);
   const [forceHttps, setForceHttps] = createSignal(props.initial?.forceHttps ?? false);
   const [http2, setHttp2] = createSignal(props.initial?.http2Support ?? true);
+  const [certificateId, setCertificateId] = createSignal(props.initial?.certificateId ?? '');
+  const certificates = createMemo(() => loadCertificates());
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string[] | null>(null);
 
@@ -68,7 +76,7 @@ export default function HostForm(props: HostFormProps) {
       blockCommonExploits: blockExploits(),
       forceHttps: forceHttps(),
       http2Support: http2(),
-      certificateId: null,
+      certificateId: certificateId() || null,
       accessListId: null,
       requestHeaders: [],
       responseHeaders: [],
@@ -121,6 +129,19 @@ export default function HostForm(props: HostFormProps) {
           <input class={inputClass} type="number" min={1} max={65535} value={forwardPort()} onInput={(e) => setForwardPort(Number(e.currentTarget.value))} required />
         </Field>
       </div>
+
+      <Field label="Certificate (for HTTPS)" hint="The certificate served for this host's domains via SNI.">
+        <select class={inputClass} value={certificateId()} onChange={(e) => setCertificateId(e.currentTarget.value)}>
+          <option value="">— none —</option>
+          <For each={certificates()}>
+            {(certificate) => (
+              <option value={certificate.id} disabled={certificate.status !== 'Issued'}>
+                {certificate.name} ({certificate.domains.join(', ')})
+              </option>
+            )}
+          </For>
+        </select>
+      </Field>
 
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <Toggle label="Enabled" checked={enabled()} onChange={setEnabled} />

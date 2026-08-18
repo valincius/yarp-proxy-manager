@@ -125,22 +125,26 @@ public partial class Program
         builder.Services.AddHostedService<CertificateRenewalWorker>();
 
         // --- Kestrel HTTPS with SNI certificate selection ---
-        var kestrelServices = builder.Services.BuildServiceProvider();
-        builder.WebHost.ConfigureKestrel(kestrel =>
-        {
-            kestrel.ConfigureHttpsDefaults(https =>
-            {
-                https.ServerCertificateSelector = (connectionContext, name) =>
-                    kestrelServices.GetRequiredService<SniCertificateSelector>().Select(connectionContext, name);
-            });
-        });
-
         // --- YARP (empty initial config; ProxyConfigReloader swaps in the real routes) ---
         builder.Services.AddReverseProxy().LoadFromMemory([], []);
 
         configure?.Invoke(builder);
 
+        // --- Kestrel HTTPS with SNI certificate selection ---
+        // The selector is resolved from the app's own service provider (assigned after
+        // Build) so the Kestrel callback and the rest of the app share one instance.
+        SniCertificateSelector? sniSelector = null;
+        builder.WebHost.ConfigureKestrel(kestrel =>
+        {
+            kestrel.ConfigureHttpsDefaults(https =>
+            {
+                https.ServerCertificateSelector = (connectionContext, name) =>
+                    sniSelector?.Select(connectionContext, name);
+            });
+        });
+
         var app = builder.Build();
+        sniSelector = app.Services.GetRequiredService<SniCertificateSelector>();
 
         // --- Static file root: use the built frontend when present next to the source tree,
         //     otherwise the published wwwroot (Docker copies dist/client there). ---

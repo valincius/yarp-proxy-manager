@@ -263,15 +263,27 @@ public sealed class CertificateManagerTests : IDisposable
 
     public static class SelfSignedCertificate
     {
-        public static (string CertPem, string KeyPem) Create(string domain)
+        private static System.Security.Cryptography.X509Certificates.CertificateRequest CreateRequest(
+            string domain,
+            System.Security.Cryptography.RSA rsa)
         {
-            using var rsa = System.Security.Cryptography.RSA.Create(2048);
             var request = new System.Security.Cryptography.X509Certificates.CertificateRequest(
                 $"CN={domain}", rsa,
                 System.Security.Cryptography.HashAlgorithmName.SHA256,
                 System.Security.Cryptography.RSASignaturePadding.Pkcs1);
-            request.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder().Build());
-            using var certificate = request.CreateSelfSigned(
+            var sanBuilder = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder();
+            sanBuilder.AddDnsName(domain);
+            request.CertificateExtensions.Add(sanBuilder.Build());
+            request.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509BasicConstraintsExtension(false, false, 0, false));
+            request.CertificateExtensions.Add(new System.Security.Cryptography.X509Certificates.X509EnhancedKeyUsageExtension(
+                new System.Security.Cryptography.OidCollection { new("1.3.6.1.5.5.7.3.1") }, false));
+            return request;
+        }
+
+        public static (string CertPem, string KeyPem) Create(string domain)
+        {
+            using var rsa = System.Security.Cryptography.RSA.Create(2048);
+            using var certificate = CreateRequest(domain, rsa).CreateSelfSigned(
                 DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(90));
             return (certificate.ExportCertificatePem(), rsa.ExportPkcs8PrivateKeyPem());
         }
@@ -279,11 +291,7 @@ public sealed class CertificateManagerTests : IDisposable
         public static byte[] CreatePfx(string domain, string password)
         {
             using var rsa = System.Security.Cryptography.RSA.Create(2048);
-            var request = new System.Security.Cryptography.X509Certificates.CertificateRequest(
-                $"CN={domain}", rsa,
-                System.Security.Cryptography.HashAlgorithmName.SHA256,
-                System.Security.Cryptography.RSASignaturePadding.Pkcs1);
-            using var certificate = request.CreateSelfSigned(
+            using var certificate = CreateRequest(domain, rsa).CreateSelfSigned(
                 DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(90));
             return certificate.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Pfx, password);
         }

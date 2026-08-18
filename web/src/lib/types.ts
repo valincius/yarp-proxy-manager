@@ -79,3 +79,32 @@ export interface Session {
   displayName: string;
   roles: string[];
 }
+
+export interface CertificateDto {
+  id: string;
+  name: string;
+  domains: string[];
+  provider: 'Manual' | 'Acme';
+  status: 'Pending' | 'Issued' | 'Failed' | 'Revoked';
+  notBefore: string | null;
+  notAfter: string | null;
+  challengeType: 'Http01' | 'Dns01' | null;
+  dnsCredentialId: string | null;
+  lastRenewalAttempt: string | null;
+  lastRenewalError: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface DnsCredentialDto {
+  id: string;
+  name: string;
+  provider: string;
+  createdAt: string;
+}
+
+export interface AcmeSettings {
+  email: string;
+  directoryUrl: string;
+  staging: boolean;
+}
