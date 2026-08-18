@@ -6,7 +6,8 @@ A self-hosted, database-backed reverse proxy manager in the spirit of Nginx Prox
 
 - **Phase 0 — Scaffold (done):** solution layout, pinned dependencies, YARP-on-net10 smoke test, frontend moved to `web/` with Tailwind v4, CI workflow.
 - **Phase 1 — Core proxy MVP (done):** entities, EF Core + SQLite, dynamic config projection into YARP (hot reload, no restarts), Identity auth, hosts API, Solid 2 admin UI (login + dashboard + hosts CRUD), Docker packaging. Verified end-to-end: create a host in the UI → traffic flows through the proxy port instantly.
-- **Phase 2 — Certificates (next):** per-host ACME certificates via Certes (HTTP-01 + Cloudflare DNS-01), Kestrel SNI selection, renewal worker, HTTPS on 443.
+- **Phase 2 — Certificates (done):** per-host ACME certificates via Certes (HTTP-01 + Cloudflare DNS-01), manual PFX/PEM upload, Kestrel SNI selection on 443, automatic renewal worker, ForceHTTPS redirects, certificates + DNS credentials + ACME settings UI.
+- **Phase 3 — NPM parity (next):** redirect hosts, access lists, exploit blocking, custom headers/locations, audit log, users, settings.
 
 ## Layout
 
