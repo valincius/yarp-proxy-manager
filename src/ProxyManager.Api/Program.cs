@@ -106,10 +106,12 @@ public partial class Program
 
         // --- Static file root: use the built frontend when present next to the source tree,
         //     otherwise the published wwwroot (Docker copies dist/client there). ---
+        var cwd = Directory.GetCurrentDirectory();
         var webDistCandidates = new[]
         {
-            Path.Combine(Directory.GetCurrentDirectory(), "..", "web", "dist", "client"),
-            Path.Combine(app.Environment.ContentRootPath, "..", "web", "dist", "client"),
+            Path.GetFullPath(Path.Combine(cwd, "web", "dist", "client")),             // app run from the repo root
+            Path.GetFullPath(Path.Combine(cwd, "..", "..", "web", "dist", "client")), // app run from src/ProxyManager.Api
+            Path.GetFullPath(Path.Combine(app.Environment.ContentRootPath, "..", "..", "web", "dist", "client")),
         };
         var webDist = webDistCandidates.FirstOrDefault(Directory.Exists) ?? string.Empty;
         var wwwroot = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
@@ -129,6 +131,11 @@ public partial class Program
         }
 
         var staticFileOptions = new StaticFileOptions { FileProvider = staticFileProvider };
+        app.Logger.LogInformation(
+            "Serving admin UI from {StaticRoot} (cwd: {Cwd}, contentRoot: {ContentRoot})",
+            staticFileProvider is NullFileProvider ? "(none)" : webDist.Length > 0 ? webDist : wwwroot,
+            Directory.GetCurrentDirectory(),
+            app.Environment.ContentRootPath);
 
         var adminPort = GetAdminPort(builder.Configuration);
 

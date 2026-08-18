@@ -1,23 +1,21 @@
 import { Title } from '@solidjs/meta';
 import { Loading } from 'solid-js';
-import { paths, Router } from './router';
+import { Router } from './router';
+import { AuthProvider } from './lib/auth';
 import './App.css';
 
-// The app root: the router and the site-wide layout live here. Pages are
-// the modules under src/routes.
+// The app root: auth provider + router. Pages are the modules under src/routes.
 export default function App() {
   return (
-    <Router>
-      {(props) => (
-        <>
-          <Title>Solid App</Title>
-          <nav>
-            <a href={paths()}>Home</a>
-            <a href={paths.users(1)}>Users</a>
-          </nav>
-          <Loading fallback={<main>Loading…</main>}>{props.children}</Loading>
-        </>
-      )}
-    </Router>
+    <AuthProvider>
+      <Router>
+        {(props) => (
+          <>
+            <Title>YARP Proxy Manager</Title>
+            <Loading fallback={<main>Loading…</main>}>{props.children}</Loading>
+          </>
+        )}
+      </Router>
+    </AuthProvider>
   );
 }

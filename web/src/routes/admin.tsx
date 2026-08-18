@@ -1,0 +1,55 @@
+import type { ParentProps } from 'solid-js';
+import { createEffect, Show } from 'solid-js';
+import { useLocation, useNavigate } from '@solidjs/router';
+import { useAuth } from '../lib/auth';
+
+const activeNav = 'block rounded-md bg-slate-700 px-3 py-2 text-sm font-medium text-white';
+const inactiveNav = 'block rounded-md px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white';
+
+// A pathless layout: paired with the admin/ directory, every admin page renders inside.
+export default function AdminLayout(props: ParentProps) {
+  const auth = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  createEffect(() => {
+    if (auth.ready() && !auth.session()) {
+      navigate('/login', { replace: true });
+    }
+  });
+
+  const isActive = (path: string) =>
+    location.pathname === path || location.pathname.startsWith(path + '/');
+
+  return (
+    <Show when={auth.ready()} fallback={<main class="p-8 text-center text-slate-500">Loading…</main>}>
+      <Show when={auth.session()}>
+        <div class="flex min-h-screen bg-slate-100">
+          <aside class="flex w-60 flex-col bg-slate-900 text-slate-100">
+            <div class="border-b border-slate-800 px-4 py-4 text-sm font-semibold tracking-wide">
+              YARP Proxy Manager
+            </div>
+            <nav class="flex flex-col gap-1 p-3">
+              <a href="/admin" class={isActive('/admin') && location.pathname === '/admin' ? activeNav : inactiveNav}>
+                Dashboard
+              </a>
+              <a href="/admin/hosts" class={isActive('/admin/hosts') ? activeNav : inactiveNav}>
+                Proxy Hosts
+              </a>
+            </nav>
+            <div class="mt-auto border-t border-slate-800 p-4 text-xs text-slate-400">
+              <div class="mb-2 truncate">{auth.session()!.email}</div>
+              <button
+                class="rounded-md bg-slate-700 px-3 py-1.5 font-medium text-slate-100 hover:bg-slate-600"
+                onClick={() => void auth.logout()}
+              >
+                Log out
+              </button>
+            </div>
+          </aside>
+          <main class="flex-1 overflow-x-auto p-8">{props.children}</main>
+        </div>
+      </Show>
+    </Show>
+  );
+}
