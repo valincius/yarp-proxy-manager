@@ -5,7 +5,8 @@ A self-hosted, database-backed reverse proxy manager in the spirit of Nginx Prox
 ## Status
 
 - **Phase 0 — Scaffold (done):** solution layout, pinned dependencies, YARP-on-net10 smoke test, frontend moved to `web/` with Tailwind v4, CI workflow.
-- **Phase 1 — Core proxy MVP (in progress):** entities, EF Core + SQLite, config projection into YARP, Identity auth, hosts API + UI.
+- **Phase 1 — Core proxy MVP (done):** entities, EF Core + SQLite, dynamic config projection into YARP (hot reload, no restarts), Identity auth, hosts API, Solid 2 admin UI (login + dashboard + hosts CRUD), Docker packaging. Verified end-to-end: create a host in the UI → traffic flows through the proxy port instantly.
+- **Phase 2 — Certificates (next):** per-host ACME certificates via Certes (HTTP-01 + Cloudflare DNS-01), Kestrel SNI selection, renewal worker, HTTPS on 443.
 
 ## Layout
 
@@ -45,4 +46,8 @@ cd web && pnpm test -- --run && pnpm build
 
 ## Deployment
 
-Docker (Phase 1 adds the Dockerfile + compose): container owns 80/443/81, data volume at `/data` (SQLite, certificates, Data Protection keys, logs).
+```bash
+cd docker && docker compose up -d
+```
+
+The container owns port 80 (reverse proxy) and 81 (admin UI/API); the data volume at `./data` holds the SQLite database, certificates, Data Protection keys and logs. The default admin account is `admin@example.com` / `changeme` — set `Admin__Password` (or `ADMIN_PASSWORD`) before first boot. HTTPS on 443 arrives with the certificate subsystem (Phase 2).

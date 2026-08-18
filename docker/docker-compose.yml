@@ -1,0 +1,18 @@
+services:
+  proxy-manager:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: yarp-proxy-manager:latest
+    container_name: yarp-proxy-manager
+    restart: unless-stopped
+    ports:
+      - "80:80" # reverse proxy (HTTP)
+      - "81:81" # admin UI + API
+      # 443 (HTTPS) is mapped once the certificate subsystem lands (Phase 2).
+      # Streams (TCP/UDP) additionally publish their listen ports here (Phase 4).
+    environment:
+      - Admin__Email=admin@example.com
+      - Admin__Password=changeme
+    volumes:
+      - ./data:/data # SQLite, certificates, Data Protection keys, logs
