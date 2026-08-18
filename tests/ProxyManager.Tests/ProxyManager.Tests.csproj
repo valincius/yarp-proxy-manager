@@ -3,6 +3,8 @@
   <PropertyGroup>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Routing tests use explicit UseRouting/UseEndpoints to exercise branch pipelines. -->
+    <NoWarn>$(NoWarn);ASP0001;ASP0014</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

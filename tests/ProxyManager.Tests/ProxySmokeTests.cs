@@ -19,16 +19,13 @@ public sealed class ProxySmokeTests
     public async Task YarpOnNet10_ProxiesHttpRequest_ToUpstream()
     {
         // 1. Upstream server on an ephemeral port.
-        var upstreamBuilder = WebApplication.CreateBuilder();
-        upstreamBuilder.WebHost.UseUrls("http://127.0.0.1:0");
-        await using var upstream = upstreamBuilder.Build();
+        await using var upstream = CreateHermeticAppBuilder().Build();
         upstream.MapGet("/", () => Results.Text("hello-from-upstream"));
         await upstream.StartAsync();
         var upstreamAddress = GetServerAddress(upstream);
 
         // 2. Proxy server on an ephemeral port, configured from in-memory YARP config.
-        var proxyBuilder = WebApplication.CreateBuilder();
-        proxyBuilder.WebHost.UseUrls("http://127.0.0.1:0");
+        var proxyBuilder = CreateHermeticAppBuilder();
         proxyBuilder.Services.AddReverseProxy().LoadFromMemory(
             new[]
             {
@@ -63,6 +60,23 @@ public sealed class ProxySmokeTests
 
         await proxy.StopAsync();
         await upstream.StopAsync();
+    }
+
+    /// <summary>
+    /// Creates a builder with an empty temp content root so no appsettings.json
+    /// (e.g. the Api project's Kestrel endpoints) leaks into the test process.
+    /// </summary>
+    private static WebApplicationBuilder CreateHermeticAppBuilder()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "yarp-smoke-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+        {
+            Args = [],
+            ContentRootPath = root,
+        });
+        builder.WebHost.UseUrls("http://127.0.0.1:0");
+        return builder;
     }
 
     private static string GetServerAddress(WebApplication app)

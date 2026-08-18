@@ -10,4 +10,8 @@
     <PackageReference Include="FluentValidation" Version="12.1.1" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ProxyManager.Domain\ProxyManager.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

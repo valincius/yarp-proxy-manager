@@ -14,4 +14,9 @@
     <PackageReference Include="Certes" Version="3.0.4" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ProxyManager.Application\ProxyManager.Application.csproj" />
+    <ProjectReference Include="..\ProxyManager.Domain\ProxyManager.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -14,4 +14,9 @@
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ProxyManager.Application\ProxyManager.Application.csproj" />
+    <ProjectReference Include="..\ProxyManager.Domain\ProxyManager.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

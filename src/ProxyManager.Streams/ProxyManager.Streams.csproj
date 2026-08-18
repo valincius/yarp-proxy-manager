@@ -10,4 +10,9 @@
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ProxyManager.Application\ProxyManager.Application.csproj" />
+    <ProjectReference Include="..\ProxyManager.Domain\ProxyManager.Domain.csproj" />
+  </ItemGroup>
+
 </Project>

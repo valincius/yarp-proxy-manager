@@ -1,6 +1,272 @@
-var builder = WebApplication.CreateBuilder(args);
-var app = builder.Build();
+using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.FileProviders;
+using ProxyManager.Api.Middleware;
+using ProxyManager.Api.Routing;
+using ProxyManager.Application;
+using ProxyManager.Application.Proxy;
+using ProxyManager.Application.ProxyHosts;
+using ProxyManager.Infrastructure.Persistence;
+using ProxyManager.Proxy;
+using Serilog;
+using Yarp.ReverseProxy.Configuration;
 
-app.MapGet("/", () => "Hello World!");
+// --- Entry point ---
+var app = Program.BuildApp(args);
+await Program.InitializeAsync(app);
+await app.RunAsync();
 
-app.Run();
+public partial class Program
+{
+    /// <summary>
+    /// Builds the application (services, Kestrel endpoints, pipelines). Exposed so tests can
+    /// host the real production pipeline on Kestrel with injected configuration.
+    /// </summary>
+    public static WebApplication BuildApp(string[] args, Action<WebApplicationBuilder>? configure = null)
+    {
+        var builder = WebApplication.CreateBuilder(args);
+
+        // --- Logging (Serilog: console + optional rolling file under the data directory) ---
+        Log.Logger = new LoggerConfiguration()
+            .ReadFrom.Configuration(builder.Configuration)
+            .Enrich.FromLogContext()
+            .WriteTo.Console()
+            .WriteTo.File(Path.Combine(DataDirectory(builder), "logs", "proxy-manager-.log"),
+                rollingInterval: RollingInterval.Day, retainedFileCountLimit: 14)
+            .CreateLogger();
+        builder.Host.UseSerilog();
+
+        // --- Data directory ---
+        var dataDir = DataDirectory(builder);
+        Directory.CreateDirectory(Path.Combine(dataDir, "logs"));
+
+        // --- Database ---
+        var connectionString = builder.Configuration.GetConnectionString("ProxyDb")
+            ?? $"Data Source={Path.Combine(dataDir, "proxy.db")}";
+        builder.Services.AddDbContext<ProxyDbContext>(options => options.UseSqlite(connectionString));
+
+        // --- Identity (local users, cookie auth; OIDC arrives in a later phase) ---
+        builder.Services
+            .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
+            {
+                options.Password.RequiredLength = 5;
+                options.Password.RequireDigit = false;
+                options.Password.RequireLowercase = false;
+                options.Password.RequireUppercase = false;
+                options.Password.RequireNonAlphanumeric = false;
+                options.User.RequireUniqueEmail = true;
+            })
+            .AddEntityFrameworkStores<ProxyDbContext>()
+            .AddDefaultTokenProviders();
+
+        builder.Services.ConfigureApplicationCookie(options =>
+        {
+            options.Cookie.Name = "yarp_manager";
+            options.Cookie.HttpOnly = true;
+            options.ExpireTimeSpan = TimeSpan.FromHours(12);
+            options.SlidingExpiration = true;
+            options.Events.OnRedirectToLogin = context =>
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Task.CompletedTask;
+            };
+        });
+
+        builder.Services.AddAuthorization();
+        builder.Services.AddAntiforgery(options =>
+        {
+            options.HeaderName = "X-XSRF-TOKEN";
+            options.Cookie.Name = "XSRF-TOKEN";
+            options.Cookie.HttpOnly = false; // the SPA must read this cookie to echo the header
+        });
+
+        // --- MVC + OpenAPI ---
+        builder.Services.AddControllers();
+        builder.Services.Configure<MvcOptions>(options =>
+            options.Conventions.Add(new RequireAdminPortConvention()));
+        builder.Services.AddOpenApi();
+
+        // --- Application services ---
+        builder.Services.AddSingleton(TimeProvider.System);
+        builder.Services.AddSingleton<ProxyConfigReloader>();
+        builder.Services.AddSingleton<IConfigReloadNotifier, ConfigReloadNotifier>();
+        builder.Services.AddScoped<IProxyHostRepository, ProxyHostRepository>();
+        builder.Services.AddScoped<IProxyConfigStore, ProxyConfigStore>();
+        builder.Services.AddScoped<ProxyHostValidator>();
+        builder.Services.AddScoped<ProxyHostService>();
+
+        // --- YARP (empty initial config; ProxyConfigReloader swaps in the real routes) ---
+        builder.Services.AddReverseProxy().LoadFromMemory([], []);
+
+        configure?.Invoke(builder);
+
+        var app = builder.Build();
+
+        // --- Static file root: use the built frontend when present next to the source tree,
+        //     otherwise the published wwwroot (Docker copies dist/client there). ---
+        var webDistCandidates = new[]
+        {
+            Path.Combine(Directory.GetCurrentDirectory(), "..", "web", "dist", "client"),
+            Path.Combine(app.Environment.ContentRootPath, "..", "web", "dist", "client"),
+        };
+        var webDist = webDistCandidates.FirstOrDefault(Directory.Exists) ?? string.Empty;
+        var wwwroot = Path.Combine(app.Environment.ContentRootPath, "wwwroot");
+        IFileProvider staticFileProvider;
+        if (webDist.Length > 0)
+        {
+            staticFileProvider = new PhysicalFileProvider(webDist);
+        }
+        else if (Directory.Exists(wwwroot))
+        {
+            staticFileProvider = new PhysicalFileProvider(wwwroot);
+        }
+        else
+        {
+            // No frontend build present (fresh dev checkout / tests): serve nothing.
+            staticFileProvider = new NullFileProvider();
+        }
+
+        var staticFileOptions = new StaticFileOptions { FileProvider = staticFileProvider };
+
+        var adminPort = GetAdminPort(builder.Configuration);
+
+        app.UseMiddleware<ExceptionHandlingMiddleware>();
+        app.UseSerilogRequestLogging();
+
+        // --- Pipeline layout (two Kestrel endpoint groups, one pipeline) ---
+        // 1. Controller routing is global but restricted to the admin port by AdminPortConvention,
+        //    so proxy-port requests always fall through to YARP (host-based matching) below.
+        // 2. The admin port additionally serves static files, OpenAPI and the SPA fallback.
+        // 3. The proxy port runs the YARP reverse proxy.
+
+        // Step 1 — controllers (admin port only via route constraint).
+        app.UseRouting();
+        app.Use(async (context, next) =>
+        {
+            // Unmatch controller endpoints on the proxy port so the request falls
+            // through to the YARP branch below (proxied hosts may serve /api paths).
+            var endpoint = context.GetEndpoint();
+            if (endpoint is not null
+                && endpoint.Metadata.GetMetadata<RequireAdminPortMetadata>() is not null
+                && !IsAdminPort(context, adminPort))
+            {
+                context.SetEndpoint(null);
+            }
+
+            await next(context);
+        });
+        app.UseWhen(ctx => IsAdminPort(ctx, adminPort), admin =>
+        {
+            admin.UseAuthentication();
+            admin.UseAuthorization();
+            admin.UseMiddleware<AntiforgeryValidationMiddleware>();
+        });
+        app.UseEndpoints(endpoints => endpoints.MapControllers());
+
+        // Step 2 — admin UI: static files + OpenAPI + SPA fallback (admin port only).
+        app.UseWhen(ctx => IsAdminPort(ctx, adminPort), admin =>
+        {
+            admin.UseDefaultFiles(new DefaultFilesOptions { FileProvider = staticFileOptions.FileProvider });
+            admin.UseStaticFiles(staticFileOptions);
+            admin.UseRouting();
+            admin.UseEndpoints(endpoints =>
+            {
+                endpoints.MapOpenApi();
+                endpoints.MapFallbackToFile("index.html", staticFileOptions);
+            });
+        });
+
+        // Step 3 — reverse proxy (proxy port only).
+        app.UseWhen(ctx => !IsAdminPort(ctx, adminPort), proxy =>
+        {
+            proxy.UseRouting();
+            proxy.UseEndpoints(endpoints => endpoints.MapReverseProxy());
+        });
+
+        return app;
+    }
+
+    private static bool IsAdminPort(HttpContext context, int adminPort)
+        => context.Connection.LocalPort == adminPort || context.Connection.LocalPort == 0;
+
+    /// <summary>Runs startup work: applies migrations, seeds the admin user, loads proxy config.</summary>
+    public static async Task InitializeAsync(WebApplication app)
+    {
+        using var scope = app.Services.CreateScope();
+        var services = scope.ServiceProvider;
+        await MigrateAndSeedAsync(services);
+        await services.GetRequiredService<ProxyConfigReloader>().ReloadAsync();
+    }
+
+    private static string DataDirectory(WebApplicationBuilder builder) =>
+        builder.Configuration["Data:Directory"]
+        ?? Path.Combine(builder.Environment.ContentRootPath, "data");
+
+    private static int GetAdminPort(IConfiguration configuration)
+    {
+        var url = configuration["Kestrel:Endpoints:Admin:Url"] ?? "http://0.0.0.0:81";
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Port > 0
+            ? uri.Port
+            : 81;
+    }
+
+    private static async Task MigrateAndSeedAsync(IServiceProvider services)
+    {
+        var db = services.GetRequiredService<ProxyDbContext>();
+        await db.Database.MigrateAsync();
+
+        var roleManager = services.GetRequiredService<RoleManager<IdentityRole<Guid>>>();
+        if (!await roleManager.RoleExistsAsync("Admin"))
+        {
+            await roleManager.CreateAsync(new IdentityRole<Guid>("Admin"));
+        }
+
+        if (!await roleManager.RoleExistsAsync("User"))
+        {
+            await roleManager.CreateAsync(new IdentityRole<Guid>("User"));
+        }
+
+        var configuration = services.GetRequiredService<IConfiguration>();
+        var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
+
+        var email = configuration["Admin:Email"] ?? "admin@example.com";
+        if (await userManager.FindByEmailAsync(email) is not null)
+        {
+            return;
+        }
+
+        var password = configuration["Admin:Password"] ?? "changeme";
+        var user = new ApplicationUser
+        {
+            UserName = email,
+            Email = email,
+            DisplayName = "Administrator",
+            EmailConfirmed = true,
+        };
+
+        var result = await userManager.CreateAsync(user, password);
+        var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("Seed");
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(user, "Admin");
+            if (configuration["Admin:Password"] is null)
+            {
+                logger.LogWarning(
+                    "Created the default admin account '{Email}' with the default password. " +
+                    "Set the Admin:Password configuration value (ADMIN_PASSWORD) and change it immediately.",
+                    email);
+            }
+            else
+            {
+                logger.LogInformation("Created the admin account '{Email}'.", email);
+            }
+        }
+        else
+        {
+            logger.LogError("Failed to create the admin account: {Errors}",
+                string.Join("; ", result.Errors.Select(e => e.Description)));
+        }
+    }
+}

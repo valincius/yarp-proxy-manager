@@ -4,12 +4,28 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <!-- ASP0001/ASP0014: the analyzers do not understand UseWhen port branches / explicit
+         UseRouting-UseEndpoints ordering; routing is deliberately explicit here. -->
+    <NoWarn>$(NoWarn);ASP0001;ASP0014</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.11" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.11">
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <PackageReference Include="Yarp.ReverseProxy" Version="2.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ProxyManager.Application\ProxyManager.Application.csproj" />
+    <ProjectReference Include="..\ProxyManager.Infrastructure\ProxyManager.Infrastructure.csproj" />
+    <ProjectReference Include="..\ProxyManager.Proxy\ProxyManager.Proxy.csproj" />
+    <ProjectReference Include="..\ProxyManager.Certificates\ProxyManager.Certificates.csproj" />
+    <ProjectReference Include="..\ProxyManager.Streams\ProxyManager.Streams.csproj" />
+    <ProjectReference Include="..\ProxyManager.Domain\ProxyManager.Domain.csproj" />
   </ItemGroup>
 
 </Project>
