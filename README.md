@@ -41,6 +41,24 @@ YARP proxies **HTTP**, which covers web apps, APIs and WebSockets. The **streams
 
 Configure a stream with a listen port, protocol and destination; the manager validates port conflicts against the proxy ports and reports per-stream status (sessions, bytes in/out) in the UI.
 
+## Docker autodiscovery (traefik-style labels)
+
+Run the manager with the Docker engine socket mounted (`/var/run/docker.sock`) and enable **Docker integration** on the Settings page. Containers opt in with labels; the manager creates a proxy host for each and disposes it again when the container disappears:
+
+```yaml
+services:
+  my-app:
+    image: my-app:latest
+    labels:
+      proxy-manager.enable: "true"
+      proxy-manager.host: "app.example.com"
+      proxy-manager.port: "8080"          # container port
+      proxy-manager.scheme: "http"        # optional: http | https
+      proxy-manager.name: "My App"        # optional display name
+```
+
+Put the manager and the published containers on a shared network so the proxy can reach the container IPs. See `benchmarks/` for the load-test harness and `docs/API.md` for the settings endpoints.
+
 ## Development
 
 Backend (dev ports 5080/5443/5081 — no admin rights needed):

@@ -1,0 +1,47 @@
+services:
+  upstream:
+    image: nginx:alpine
+    container_name: bench-upstream
+    volumes:
+      - ./nginx/upstream.conf:/etc/nginx/conf.d/default.conf:ro
+
+  yarp:
+    image: yarp-proxy-manager:latest
+    container_name: bench-yarp
+    environment:
+      - Admin__Email=admin@example.com
+      - Admin__Password=benchmark
+    ports:
+      - "18080:80" # proxy
+      - "18081:81" # admin
+
+  nginx:
+    image: nginx:alpine
+    container_name: bench-nginx
+    volumes:
+      - ./nginx/proxy.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "18082:80"
+
+  # Optional third candidate. Nginx Proxy Manager is nginx under the hood with a
+  # management layer; enable with `--profile npm` (first run pulls ~1GB).
+  npm:
+    image: jc21/nginx-proxy-manager:latest
+    container_name: bench-npm
+    profiles: ["npm"]
+    environment:
+      DB_SQLITE_FILE: "/data/database.sqlite"
+    volumes:
+      - npm-data:/data
+    ports:
+      - "18083:80"
+
+  k6:
+    image: grafana/k6:latest
+    container_name: bench-k6
+    profiles: ["loadgen"]
+    volumes:
+      - ./k6:/scripts
+
+volumes:
+  npm-data:

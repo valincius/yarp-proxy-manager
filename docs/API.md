@@ -29,6 +29,8 @@ Keys are created and deleted from the admin UI (**API Keys** page) or via the AP
 | Certificates | `GET /certificates`, `POST /certificates/issue`, `POST /certificates/upload`, `POST /certificates/{id}/renew`, `DELETE /certificates/{id}` |
 | DNS credentials | `GET/POST /dns-credentials`, `DELETE /dns-credentials/{id}` |
 | ACME settings | `GET/PUT /acme-settings` |
+| Settings (404 page) | `GET/PUT /settings/not-found` — mode `Default`/`Empty`/`Custom`, `template` with `{{host}}`, `{{path}}`, `{{method}}`, `{{now}}` placeholders *(admin cookie only)* |
+| Settings (Docker) | `GET/PUT /settings/docker`, `POST /settings/docker/sync` *(admin cookie only)* |
 | Health | `GET /health` (routes/clusters in memory) |
 | Audit log | `GET /audit?limit=100&entityType=…` |
 | Auth | `POST /auth/login`, `POST /auth/logout`, `GET /auth/session`, `GET /auth/antiforgery` |

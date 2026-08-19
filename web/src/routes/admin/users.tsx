@@ -72,10 +72,12 @@ export default function Users() {
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Email</span>
           <input type="email" class={inputClass} value={email()} onInput={(e) => setEmail(e.currentTarget.value)} required />
+          <span class="mt-1 block text-xs text-slate-500">The login address for this user.</span>
         </label>
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Password</span>
           <input type="password" class={inputClass} value={password()} onInput={(e) => setPassword(e.currentTarget.value)} required />
+          <span class="mt-1 block text-xs text-slate-500">At least 5 characters.</span>
         </label>
         <div>
           <span class="text-sm font-medium text-slate-700">Role</span>
@@ -83,6 +85,7 @@ export default function Users() {
             <option value="User">User</option>
             <option value="Admin">Admin</option>
           </select>
+          <span class="mt-1 block text-xs text-slate-500">Admins can also manage users and settings.</span>
         </div>
         <div class="sm:col-span-3">
           <button

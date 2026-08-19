@@ -16,6 +16,10 @@ data/
 *.db-wal
 *.pfx
 
+# --- Benchmark transient output ---
+benchmarks/k6/out/
+benchmarks/results.csv
+
 # --- Environment ---
 .env
 .env*.local
