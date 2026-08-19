@@ -57,6 +57,18 @@ declare module "virtual:file-routes" {
       $$route: FileRouteEagerRef<typeof import("./src/routes/[...404]")>;
     },
     {
+      path: "/admin/access-lists";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/admin/access-lists")>;
+      $$route?: undefined;
+    },
+    {
+      path: "/admin/audit";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/admin/audit")>;
+      $$route?: undefined;
+    },
+    {
       path: "/admin/certificates";
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/admin/certificates")>;
@@ -73,6 +85,18 @@ declare module "virtual:file-routes" {
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/admin/index")>;
       $$route: FileRouteEagerRef<typeof import("./src/routes/admin/index")>;
+    },
+    {
+      path: "/admin/redirects";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/admin/redirects")>;
+      $$route?: undefined;
+    },
+    {
+      path: "/admin/users";
+      page: true;
+      $component: FileRouteLazyRef<typeof import("./src/routes/admin/users")>;
+      $$route?: undefined;
     },
     {
       path: "/admin/hosts/new";
@@ -123,6 +147,14 @@ declare module "virtual:file-routes" {
           children?: undefined;
         },
         {
+          path: "/audit";
+          id: "/audit";
+          page: true;
+          $component: FileRouteLazyRef<typeof import("./src/routes/admin/audit")>;
+          $$route?: undefined;
+          children?: undefined;
+        },
+        {
           path: "/hosts";
           id: "/hosts";
           page: true;
@@ -146,6 +178,30 @@ declare module "virtual:file-routes" {
               children?: undefined;
             }
           ];
+        },
+        {
+          path: "/users";
+          id: "/users";
+          page: true;
+          $component: FileRouteLazyRef<typeof import("./src/routes/admin/users")>;
+          $$route?: undefined;
+          children?: undefined;
+        },
+        {
+          path: "/redirects";
+          id: "/redirects";
+          page: true;
+          $component: FileRouteLazyRef<typeof import("./src/routes/admin/redirects")>;
+          $$route?: undefined;
+          children?: undefined;
+        },
+        {
+          path: "/access-lists";
+          id: "/access-lists";
+          page: true;
+          $component: FileRouteLazyRef<typeof import("./src/routes/admin/access-lists")>;
+          $$route?: undefined;
+          children?: undefined;
         },
         {
           path: "/certificates";

@@ -108,3 +108,70 @@ export interface AcmeSettings {
   directoryUrl: string;
   staging: boolean;
 }
+
+export interface RedirectHost {
+  id: string;
+  name: string;
+  domainNames: string[];
+  enabled: boolean;
+  statusCode: 301 | 302;
+  preservePath: boolean;
+  forwardScheme: 'http' | 'https';
+  forwardHost: string;
+  forwardPort: number;
+  certificateId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RedirectHostInput {
+  name: string;
+  domainNames: string[];
+  enabled: boolean;
+  statusCode: 301 | 302;
+  preservePath: boolean;
+  forwardScheme: 'http' | 'https';
+  forwardHost: string;
+  forwardPort: number;
+  certificateId: string | null;
+}
+
+export interface AccessListRule {
+  id: string;
+  accessListId: string;
+  action: 'Allow' | 'Deny';
+  pattern: string;
+}
+
+export interface AccessList {
+  id: string;
+  name: string;
+  satisfyAny: boolean;
+  rules: AccessListRule[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AccessListInput {
+  name: string;
+  satisfyAny: boolean;
+  rules: { action: 'Allow' | 'Deny'; pattern: string }[];
+}
+
+export interface AuditLogDto {
+  id: string;
+  timestamp: string;
+  userId: string | null;
+  entityType: string;
+  entityId: string | null;
+  action: string;
+  details: string;
+}
+
+export interface UserDto {
+  id: string;
+  email: string;
+  displayName: string;
+  roles: string[];
+  lockoutEnd: string | null;
+}

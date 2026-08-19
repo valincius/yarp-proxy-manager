@@ -11,6 +11,7 @@ using ProxyManager.Application;
 using ProxyManager.Application.Certificates;
 using ProxyManager.Application.Proxy;
 using ProxyManager.Application.ProxyHosts;
+using ProxyManager.Application.Redirects;
 using ProxyManager.Certificates;
 using ProxyManager.Certificates.Acme;
 using ProxyManager.Infrastructure.Dns;
@@ -55,7 +56,11 @@ public partial class Program
         // --- Database ---
         var connectionString = builder.Configuration.GetConnectionString("ProxyDb")
             ?? $"Data Source={Path.Combine(dataDir, "proxy.db")}";
-        builder.Services.AddDbContext<ProxyDbContext>(options => options.UseSqlite(connectionString));
+        builder.Services.AddHttpContextAccessor();
+        builder.Services.AddSingleton<AuditSaveChangesInterceptor>();
+        builder.Services.AddDbContext<ProxyDbContext>((services, options) =>
+            options.UseSqlite(connectionString)
+                .AddInterceptors(services.GetRequiredService<AuditSaveChangesInterceptor>()));
 
         // --- Identity (local users, cookie auth; OIDC arrives in a later phase) ---
         builder.Services
@@ -106,6 +111,19 @@ public partial class Program
         builder.Services.AddScoped<IProxyConfigStore, ProxyConfigStore>();
         builder.Services.AddScoped<ProxyHostValidator>();
         builder.Services.AddScoped<ProxyHostService>();
+
+        // --- Redirects / access lists / audit ---
+        builder.Services.AddSingleton<HostPolicyIndex>();
+        builder.Services.AddSingleton<RedirectIndex>();
+        builder.Services.AddScoped<IRedirectHostRepository, RedirectHostRepository>();
+        builder.Services.AddScoped<IAccessListRepository, AccessListRepository>();
+        builder.Services.AddScoped<IAuditLogRepository, AuditLogRepository>();
+        builder.Services.AddScoped<IAccessListStore, AccessListStore>();
+        builder.Services.AddScoped<IRedirectStore, RedirectStore>();
+        builder.Services.AddScoped<RedirectHostValidator>();
+        builder.Services.AddScoped<AccessListValidator>();
+        builder.Services.AddScoped<RedirectHostService>();
+        builder.Services.AddScoped<AccessListService>();
 
         // --- Certificates subsystem ---
         builder.Services.AddHttpClient("CloudflareDns", client => client.Timeout = TimeSpan.FromSeconds(30));
@@ -232,6 +250,9 @@ public partial class Program
         var httpsPort = GetEndpointPort(builder.Configuration, "Kestrel:Endpoints:Https:Url", 443);
         app.UseWhen(ctx => !IsAdminPort(ctx, adminPort), proxy =>
         {
+            proxy.UseMiddleware<RedirectMiddleware>();
+            proxy.UseMiddleware<AccessListMiddleware>();
+            proxy.UseMiddleware<ExploitBlockMiddleware>();
             proxy.UseMiddleware<ForceHttpsRedirectMiddleware>(httpsPort);
             proxy.UseRouting();
             proxy.UseEndpoints(endpoints => endpoints.MapReverseProxy());

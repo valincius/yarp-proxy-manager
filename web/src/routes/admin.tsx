@@ -39,8 +39,20 @@ export default function AdminLayout(props: ParentProps) {
               <a href="/admin/hosts" class={isActive('/admin/hosts') ? activeNav : inactiveNav}>
                 Proxy Hosts
               </a>
+              <a href="/admin/redirects" class={isActive('/admin/redirects') ? activeNav : inactiveNav}>
+                Redirection Hosts
+              </a>
+              <a href="/admin/access-lists" class={isActive('/admin/access-lists') ? activeNav : inactiveNav}>
+                Access Lists
+              </a>
               <a href="/admin/certificates" class={isActive('/admin/certificates') ? activeNav : inactiveNav}>
                 SSL Certificates
+              </a>
+              <a href="/admin/audit" class={isActive('/admin/audit') ? activeNav : inactiveNav}>
+                Audit Log
+              </a>
+              <a href="/admin/users" class={isActive('/admin/users') ? activeNav : inactiveNav}>
+                Users
               </a>
             </nav>
             <div class="mt-auto border-t border-slate-800 p-4 text-xs text-slate-400">

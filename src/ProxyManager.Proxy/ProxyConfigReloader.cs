@@ -15,6 +15,8 @@ public sealed class ProxyConfigReloader
     private readonly IServiceScopeFactory _scopeFactory;
     private readonly InMemoryConfigProvider _provider;
     private readonly ForceHttpsIndex _forceHttpsIndex;
+    private readonly HostPolicyIndex _hostPolicyIndex;
+    private readonly RedirectIndex _redirectIndex;
     private readonly ILogger<ProxyConfigReloader> _logger;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly object _sync = new();
@@ -24,11 +26,15 @@ public sealed class ProxyConfigReloader
         IServiceScopeFactory scopeFactory,
         InMemoryConfigProvider provider,
         ForceHttpsIndex forceHttpsIndex,
+        HostPolicyIndex hostPolicyIndex,
+        RedirectIndex redirectIndex,
         ILogger<ProxyConfigReloader> logger)
     {
         _scopeFactory = scopeFactory;
         _provider = provider;
         _forceHttpsIndex = forceHttpsIndex;
+        _hostPolicyIndex = hostPolicyIndex;
+        _redirectIndex = redirectIndex;
         _logger = logger;
     }
 
@@ -83,14 +89,43 @@ public sealed class ProxyConfigReloader
             var (routes, clusters) = YarpConfigBuilder.Build(hosts);
             _provider.Update(routes, clusters);
 
+            // Host protection policies (access lists + exploit blocking + ForceHTTPS).
+            var accessLists = await scope.ServiceProvider
+                .GetRequiredService<IAccessListStore>()
+                .GetAccessListsAsync(cancellationToken);
+            var policies = new Dictionary<string, HostPolicy>(StringComparer.OrdinalIgnoreCase);
+            foreach (var host in hosts)
+            {
+                var accessList = host.AccessListId is { } id && accessLists.TryGetValue(id, out var list)
+                    ? list
+                    : null;
+                var policy = new HostPolicy(
+                    host.BlockCommonExploits,
+                    host.ForceHttps && host.CertificateValid,
+                    accessList);
+                foreach (var domain in host.Domains)
+                {
+                    policies[domain] = policy;
+                }
+            }
+
+            _hostPolicyIndex.Update(policies);
+
             _forceHttpsIndex.Update(hosts
                 .Where(h => h.ForceHttps && h.CertificateValid)
                 .SelectMany(h => h.Domains));
 
+            // Redirect hosts.
+            var redirects = await scope.ServiceProvider
+                .GetRequiredService<IRedirectStore>()
+                .GetEnabledRedirectsAsync(cancellationToken);
+            _redirectIndex.Update(redirects);
+
             _logger.LogInformation(
-                "Proxy configuration reloaded: {RouteCount} routes, {ClusterCount} clusters.",
+                "Proxy configuration reloaded: {RouteCount} routes, {ClusterCount} clusters, {RedirectCount} redirects.",
                 routes.Count,
-                clusters.Count);
+                clusters.Count,
+                redirects.Count);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

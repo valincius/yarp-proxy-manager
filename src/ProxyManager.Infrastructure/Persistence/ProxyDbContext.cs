@@ -25,6 +25,14 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
 
     public DbSet<AcmeAccount> AcmeAccounts => Set<AcmeAccount>();
 
+    public DbSet<RedirectHost> RedirectHosts => Set<RedirectHost>();
+
+    public DbSet<AccessList> AccessLists => Set<AccessList>();
+
+    public DbSet<AccessListRule> AccessListRules => Set<AccessListRule>();
+
+    public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -99,6 +107,46 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
             entity.Property(x => x.Email).HasMaxLength(200).IsRequired();
             entity.Property(x => x.EncryptedAccountKey).HasMaxLength(8000).IsRequired();
             entity.Property(x => x.DirectoryUrl).HasMaxLength(500).IsRequired();
+        });
+
+        builder.Entity<RedirectHost>(entity =>
+        {
+            entity.ToTable("RedirectHosts");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.DomainNames).HasConversion(
+                v => JsonSerializer.Serialize(v),
+                v => JsonSerializer.Deserialize<List<string>>(v) ?? new List<string>());
+            entity.Property(x => x.ForwardScheme).HasMaxLength(10).IsRequired();
+            entity.Property(x => x.ForwardHost).HasMaxLength(253).IsRequired();
+        });
+
+        builder.Entity<AccessList>(entity =>
+        {
+            entity.ToTable("AccessLists");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.HasMany(x => x.Rules).WithOne()
+                .HasForeignKey(x => x.AccessListId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<AccessListRule>(entity =>
+        {
+            entity.ToTable("AccessListRules");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Action).HasMaxLength(10).IsRequired();
+            entity.Property(x => x.Pattern).HasMaxLength(100).IsRequired();
+        });
+
+        builder.Entity<AuditLog>(entity =>
+        {
+            entity.ToTable("AuditLogs");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.EntityType).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Action).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.Details).HasMaxLength(8000);
+            entity.HasIndex(x => x.Timestamp);
         });
     }
 }

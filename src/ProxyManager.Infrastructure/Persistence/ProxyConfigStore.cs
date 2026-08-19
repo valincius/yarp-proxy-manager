@@ -34,6 +34,7 @@ public sealed class ProxyConfigStore(ProxyDbContext db) : IProxyConfigStore
                 h.ForceHttps,
                 h.Http2Support,
                 h.CertificateId is { } certificateId && certificates.ContainsKey(certificateId),
+                h.AccessListId,
                 h.Locations.OrderBy(l => l.Order).Select(ToLocation).ToList(),
                 h.RequestHeaders.Select(ToHeader).ToList(),
                 h.ResponseHeaders.Select(ToHeader).ToList()))
