@@ -33,6 +33,7 @@ function installFetchMock(overrides: Record<string, Response | (() => Response)>
     if (url === '/api/v1/auth/session') return jsonResponse({ error: 'Unauthorized' }, 401);
     if (url === '/api/v1/auth/antiforgery') return jsonResponse({ token: 'xsrf-test' });
     if (url === '/api/v1/auth/login') return jsonResponse(SESSION);
+    if (url === '/api/v1/auth/external-enabled') return jsonResponse({ enabled: false });
     if (url === '/api/v1/hosts') return jsonResponse([]);
     if (url === '/api/v1/health') return jsonResponse({ routes: 0, clusters: 0 });
     return jsonResponse({ error: `unmocked ${url}` }, 500);

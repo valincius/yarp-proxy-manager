@@ -15,7 +15,14 @@ public sealed record ProxyHostInput(
     Guid? AccessListId,
     IReadOnlyList<ProxyHeaderInput> RequestHeaders,
     IReadOnlyList<ProxyHeaderInput> ResponseHeaders,
-    IReadOnlyList<ProxyLocationInput> Locations);
+    IReadOnlyList<ProxyLocationInput> Locations,
+    IReadOnlyList<ProxyDestinationInput> Destinations,
+    string? LoadBalancingPolicy,
+    bool HealthCheckEnabled,
+    string? HealthCheckPath,
+    int HealthCheckIntervalSeconds);
+
+public sealed record ProxyDestinationInput(string ForwardHost, int ForwardPort);
 
 public sealed record ProxyLocationInput(
     string PathPrefix,
@@ -44,9 +51,16 @@ public sealed record HostConfig(
     bool Http2Support,
     bool CertificateValid,
     Guid? AccessListId,
+    IReadOnlyList<DestinationConfig> Destinations,
+    string? LoadBalancingPolicy,
+    bool HealthCheckEnabled,
+    string? HealthCheckPath,
+    int HealthCheckIntervalSeconds,
     IReadOnlyList<LocationConfig> Locations,
     IReadOnlyList<HeaderConfig> RequestHeaders,
     IReadOnlyList<HeaderConfig> ResponseHeaders);
+
+public sealed record DestinationConfig(string ForwardHost, int ForwardPort);
 
 public sealed record LocationConfig(
     string PathPrefix,

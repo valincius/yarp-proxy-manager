@@ -35,11 +35,19 @@ public sealed class ProxyConfigStore(ProxyDbContext db) : IProxyConfigStore
                 h.Http2Support,
                 h.CertificateId is { } certificateId && certificates.ContainsKey(certificateId),
                 h.AccessListId,
+                h.Destinations.OrderBy(d => d.ForwardHost).Select(ToDestination).ToList(),
+                h.LoadBalancingPolicy,
+                h.HealthCheckEnabled,
+                h.HealthCheckPath,
+                h.HealthCheckIntervalSeconds,
                 h.Locations.OrderBy(l => l.Order).Select(ToLocation).ToList(),
                 h.RequestHeaders.Select(ToHeader).ToList(),
                 h.ResponseHeaders.Select(ToHeader).ToList()))
             .ToList();
     }
+
+    private static DestinationConfig ToDestination(ProxyDestination d) =>
+        new(d.ForwardHost, d.ForwardPort);
 
     private static LocationConfig ToLocation(ProxyLocation l) =>
         new(l.PathPrefix, l.StripPrefix, l.Scheme, l.ForwardHost, l.ForwardPort);

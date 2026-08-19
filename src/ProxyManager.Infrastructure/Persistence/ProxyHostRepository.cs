@@ -10,7 +10,8 @@ public sealed class ProxyHostRepository(ProxyDbContext db) : IProxyHostRepositor
         query
             .Include(h => h.Locations)
             .Include(h => h.RequestHeaders)
-            .Include(h => h.ResponseHeaders);
+            .Include(h => h.ResponseHeaders)
+            .Include(h => h.Destinations);
 
     public async Task<IReadOnlyList<ProxyHost>> ListAsync(CancellationToken cancellationToken = default) =>
         await WithChildren(db.ProxyHosts.AsNoTracking())
@@ -39,14 +40,17 @@ public sealed class ProxyHostRepository(ProxyDbContext db) : IProxyHostRepositor
         db.ProxyLocations.RemoveRange(tracked.Locations);
         db.ProxyHeaders.RemoveRange(tracked.RequestHeaders);
         db.ProxyHeaders.RemoveRange(tracked.ResponseHeaders);
+        db.ProxyDestinations.RemoveRange(tracked.Destinations);
 
         db.Entry(tracked).CurrentValues.SetValues(host);
         tracked.Locations = host.Locations;
         tracked.RequestHeaders = host.RequestHeaders;
         tracked.ResponseHeaders = host.ResponseHeaders;
+        tracked.Destinations = host.Destinations;
 
         db.ProxyLocations.AddRange(tracked.Locations);
         db.ProxyHeaders.AddRange(tracked.RequestHeaders.Concat(tracked.ResponseHeaders));
+        db.ProxyDestinations.AddRange(tracked.Destinations);
 
         await db.SaveChangesAsync(cancellationToken);
     }

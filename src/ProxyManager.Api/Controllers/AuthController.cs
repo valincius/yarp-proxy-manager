@@ -1,4 +1,6 @@
+using System.Security.Claims;
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -52,6 +54,61 @@ public sealed class AuthController(
     {
         var tokens = antiforgery.GetAndStoreTokens(HttpContext);
         return Ok(new { token = tokens.RequestToken });
+    }
+
+    [HttpGet("external-enabled")]
+    [AllowAnonymous]
+    public IActionResult ExternalEnabled(IConfiguration configuration)
+        => Ok(new { enabled = !string.IsNullOrWhiteSpace(configuration["Oidc:Authority"]) });
+
+    [HttpGet("external-login")]
+    [AllowAnonymous]
+    public IActionResult ExternalLogin([FromQuery] string? returnUrl = "/admin")
+    {
+        var redirectUri = Url.Action(nameof(ExternalCallback), "Auth", new { returnUrl });
+        var properties = new AuthenticationProperties { RedirectUri = redirectUri };
+        return Challenge(properties, "oidc");
+    }
+
+    [HttpGet("external-callback")]
+    [AllowAnonymous]
+    public async Task<IActionResult> ExternalCallback([FromQuery] string? returnUrl = "/admin")
+    {
+        var info = await signInManager.GetExternalLoginInfoAsync();
+        if (info is null)
+        {
+            return BadRequest(new { error = "External login failed." });
+        }
+
+        var email = info.Principal.FindFirstValue(ClaimTypes.Email);
+        var user = email is not null ? await userManager.FindByEmailAsync(email) : null;
+        if (user is null && email is not null)
+        {
+            user = new ApplicationUser
+            {
+                UserName = email,
+                Email = email,
+                DisplayName = email.Split('@')[0],
+                EmailConfirmed = true,
+            };
+
+            var created = await userManager.CreateAsync(user);
+            if (!created.Succeeded)
+            {
+                return BadRequest(new { error = "Could not provision the OIDC user." });
+            }
+
+            await userManager.AddToRoleAsync(user, "User");
+            await userManager.AddLoginAsync(user, info);
+        }
+
+        if (user is null)
+        {
+            return BadRequest(new { error = "The OIDC login could not be linked to a user." });
+        }
+
+        await signInManager.SignInAsync(user, isPersistent: true);
+        return LocalRedirect(returnUrl ?? "/admin");
     }
 
     private async Task<object> SessionAsync()

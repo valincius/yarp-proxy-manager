@@ -158,5 +158,22 @@ public sealed class ProxyHostService
             ForwardPort = l.ForwardPort,
             Order = l.Order,
         }).ToList();
+
+        host.Destinations = input.Destinations.Select(d => new ProxyDestination
+        {
+            Id = Guid.NewGuid(),
+            ProxyHostId = host.Id,
+            ForwardHost = d.ForwardHost.Trim(),
+            ForwardPort = d.ForwardPort,
+        }).ToList();
+
+        host.LoadBalancingPolicy = string.IsNullOrWhiteSpace(input.LoadBalancingPolicy)
+            ? null
+            : input.LoadBalancingPolicy;
+        host.HealthCheckEnabled = input.HealthCheckEnabled;
+        host.HealthCheckPath = string.IsNullOrWhiteSpace(input.HealthCheckPath)
+            ? null
+            : input.HealthCheckPath;
+        host.HealthCheckIntervalSeconds = input.HealthCheckIntervalSeconds;
     }
 }

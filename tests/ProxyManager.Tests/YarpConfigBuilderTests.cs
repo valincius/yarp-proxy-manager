@@ -14,6 +14,7 @@ public sealed class YarpConfigBuilderTests
         IReadOnlyList<HeaderConfig>? requestHeaders = null,
         IReadOnlyList<HeaderConfig>? responseHeaders = null) =>
         new(id, domains, "http", "10.0.0.5", 3000, true, true, false, true, true, null,
+            [], null, false, null, 10,
             locations ?? [], requestHeaders ?? [], responseHeaders ?? []);
 
     [Fact]
@@ -32,8 +33,8 @@ public sealed class YarpConfigBuilderTests
         route.ClusterId.Should().Be(cluster.ClusterId);
         route.Match.Hosts.Should().Equal("app.example.com");
         route.Match.Path.Should().Be("{**catch-all}");
-        cluster.Destinations.Should().ContainKey("default");
-        cluster.Destinations["default"]!.Address.Should().Be("http://10.0.0.5:3000/");
+        cluster.Destinations.Should().ContainKey("d0");
+        cluster.Destinations["d0"]!.Address.Should().Be("http://10.0.0.5:3000/");
     }
 
     [Fact]
@@ -101,5 +102,35 @@ public sealed class YarpConfigBuilderTests
         var (routes, _) = YarpConfigBuilder.Build([host]);
 
         routes.Single().Match.Hosts.Should().BeEquivalentTo("a.example.com", "b.example.com", "*.example.com");
+    }
+
+    [Fact]
+    public void MultipleDestinations_ProduceLoadBalancedClusterWithHealthChecks()
+    {
+        var host = Host(Guid.NewGuid(), ["lb.example.com"]) with
+        {
+            Destinations =
+            [
+                new DestinationConfig("10.0.0.10", 5000),
+                new DestinationConfig("10.0.0.11", 5000),
+            ],
+            LoadBalancingPolicy = "roundrobin",
+            HealthCheckEnabled = true,
+            HealthCheckPath = "/health",
+            HealthCheckIntervalSeconds = 5,
+        };
+
+        var (_, clusters) = YarpConfigBuilder.Build([host]);
+
+        var cluster = clusters.Should().ContainSingle().Subject;
+        cluster.Destinations.Should().HaveCount(2);
+        cluster.Destinations["d0"].Address.Should().Be("http://10.0.0.10:5000/");
+        cluster.Destinations["d1"].Address.Should().Be("http://10.0.0.11:5000/");
+        cluster.LoadBalancingPolicy.Should().Be("roundrobin");
+        cluster.HealthCheck.Should().NotBeNull();
+        var health = cluster.HealthCheck!;
+        health.Active!.Enabled.Should().BeTrue();
+        health.Active!.Path.Should().Be("/health");
+        health.Active!.Interval.Should().Be(TimeSpan.FromSeconds(5));
     }
 }

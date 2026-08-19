@@ -1,5 +1,6 @@
 using ProxyManager.Application.ProxyHosts;
 using Yarp.ReverseProxy.Configuration;
+using DestinationConfig = ProxyManager.Application.ProxyHosts.DestinationConfig;
 
 namespace ProxyManager.Proxy;
 
@@ -19,7 +20,7 @@ public static class YarpConfigBuilder
         foreach (var host in hosts)
         {
             var clusterId = $"host-{host.Id:n}";
-            clusters.Add(BuildCluster(clusterId, host.Scheme, host.ForwardHost, host.ForwardPort));
+            clusters.Add(BuildHostCluster(clusterId, host));
 
             var hostTransforms = BuildHeaderTransforms(host.RequestHeaders, host.ResponseHeaders);
 
@@ -81,10 +82,47 @@ public static class YarpConfigBuilder
         return (routes, clusters);
     }
 
+    /// <summary>Builds the host's cluster: one destination, or many with load balancing + health checks.</summary>
+    private static ClusterConfig BuildHostCluster(string clusterId, HostConfig host)
+    {
+        var destinations = host.Destinations.Count > 0
+            ? host.Destinations
+            : [new DestinationConfig(host.ForwardHost, host.ForwardPort)];
+
+        var cluster = new ClusterConfig
+        {
+            ClusterId = clusterId,
+            Destinations = destinations
+                .Select((d, index) => new KeyValuePair<string, Yarp.ReverseProxy.Configuration.DestinationConfig>(
+                    $"d{index}",
+                    new Yarp.ReverseProxy.Configuration.DestinationConfig
+                    {
+                        Address = $"{host.Scheme}://{d.ForwardHost}:{d.ForwardPort}/",
+                    }))
+                .ToDictionary(kv => kv.Key, kv => kv.Value),
+            LoadBalancingPolicy = destinations.Count > 1 && !string.IsNullOrWhiteSpace(host.LoadBalancingPolicy)
+                ? host.LoadBalancingPolicy
+                : null,
+            HealthCheck = host.HealthCheckEnabled && !string.IsNullOrWhiteSpace(host.HealthCheckPath)
+                ? new HealthCheckConfig
+                {
+                    Active = new ActiveHealthCheckConfig
+                    {
+                        Enabled = true,
+                        Path = host.HealthCheckPath,
+                        Interval = TimeSpan.FromSeconds(Math.Max(1, host.HealthCheckIntervalSeconds)),
+                    },
+                }
+                : null,
+        };
+
+        return cluster;
+    }
+
     private static ClusterConfig BuildCluster(string clusterId, string scheme, string host, int port) => new()
     {
         ClusterId = clusterId,
-        Destinations = new Dictionary<string, DestinationConfig>
+        Destinations = new Dictionary<string, Yarp.ReverseProxy.Configuration.DestinationConfig>
         {
             ["default"] = new() { Address = $"{scheme}://{host}:{port}/" },
         },

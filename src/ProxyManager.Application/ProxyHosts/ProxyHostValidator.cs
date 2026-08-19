@@ -43,6 +43,30 @@ public sealed class ProxyHostValidator : AbstractValidator<ProxyHostInput>
         RuleFor(x => x.Locations)
             .Must(static locations => locations.Select(static l => l.PathPrefix.TrimEnd('/')).Distinct().Count() == locations.Count)
             .WithMessage("Location path prefixes must be unique within a host.");
+
+        RuleForEach(x => x.Destinations).SetValidator(new ProxyDestinationInputValidator());
+
+        RuleFor(x => x.LoadBalancingPolicy)
+            .Must(static p => p is null
+                || p is "roundrobin" or "leastrequests" or "random" or "poweroftwochoices" or "first")
+            .WithMessage("Load-balancing policy must be one of: roundrobin, leastrequests, random, poweroftwochoices, first.");
+
+        RuleFor(x => x.HealthCheckPath)
+            .Must(static p => p is null || p.StartsWith("/", StringComparison.Ordinal))
+            .WithMessage("Health check path must start with '/'.");
+
+        RuleFor(x => x.HealthCheckIntervalSeconds)
+            .InclusiveBetween(1, 3600)
+            .When(x => x.HealthCheckEnabled);
+    }
+
+    private sealed class ProxyDestinationInputValidator : AbstractValidator<ProxyDestinationInput>
+    {
+        public ProxyDestinationInputValidator()
+        {
+            RuleFor(x => x.ForwardHost).NotEmpty().MaximumLength(253);
+            RuleFor(x => x.ForwardPort).InclusiveBetween(1, 65535);
+        }
     }
 
     private sealed class ProxyLocationInputValidator : AbstractValidator<ProxyLocationInput>

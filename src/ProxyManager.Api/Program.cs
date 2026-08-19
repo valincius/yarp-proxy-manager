@@ -1,10 +1,13 @@
 using Microsoft.AspNetCore.Antiforgery;
+using Microsoft.AspNetCore.Authentication.OpenIdConnect;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using OpenTelemetry.Instrumentation.AspNetCore;
+using OpenTelemetry.Metrics;
 using ProxyManager.Api.Middleware;
 using ProxyManager.Api.Routing;
 using ProxyManager.Application;
@@ -162,6 +165,30 @@ public partial class Program
         // --- YARP (empty initial config; ProxyConfigReloader swaps in the real routes) ---
         builder.Services.AddReverseProxy().LoadFromMemory([], []);
 
+        // --- Metrics (Prometheus; includes YARP's built-in meters) ---
+        builder.Services.AddOpenTelemetry()
+            .WithMetrics(metrics => metrics
+                .AddAspNetCoreInstrumentation()
+                .AddHttpClientInstrumentation()
+                .AddMeter("Yarp.ReverseProxy")
+                .AddPrometheusExporter());
+
+        // --- OIDC external login (optional; enabled by configuring Oidc:Authority) ---
+        var oidcAuthority = builder.Configuration["Oidc:Authority"];
+        if (!string.IsNullOrWhiteSpace(oidcAuthority))
+        {
+            builder.Services.AddAuthentication()
+                .AddOpenIdConnect("oidc", options =>
+                {
+                    options.Authority = oidcAuthority;
+                    options.ClientId = builder.Configuration["Oidc:ClientId"]
+                        ?? throw new InvalidOperationException("Oidc:ClientId is required when OIDC is enabled.");
+                    options.ClientSecret = builder.Configuration["Oidc:ClientSecret"];
+                    options.SignInScheme = IdentityConstants.ExternalScheme;
+                    options.SaveTokens = true;
+                });
+        }
+
         configure?.Invoke(builder);
 
         // --- Kestrel HTTPS with SNI certificate selection ---
@@ -258,6 +285,7 @@ public partial class Program
             admin.UseEndpoints(endpoints =>
             {
                 endpoints.MapOpenApi();
+                endpoints.MapPrometheusScrapingEndpoint();
                 endpoints.MapFallbackToFile("index.html", staticFileOptions);
             });
         });

@@ -19,6 +19,8 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
 
     public DbSet<ProxyHeader> ProxyHeaders => Set<ProxyHeader>();
 
+    public DbSet<ProxyDestination> ProxyDestinations => Set<ProxyDestination>();
+
     public DbSet<Certificate> Certificates => Set<Certificate>();
 
     public DbSet<DnsCredential> DnsCredentials => Set<DnsCredential>();
@@ -58,6 +60,16 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
             entity.HasMany(x => x.ResponseHeaders).WithOne()
                 .HasForeignKey(x => x.ProxyHostId)
                 .OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(x => x.Destinations).WithOne()
+                .HasForeignKey(x => x.ProxyHostId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        builder.Entity<ProxyDestination>(entity =>
+        {
+            entity.ToTable("ProxyDestinations");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.ForwardHost).HasMaxLength(253).IsRequired();
         });
 
         builder.Entity<ProxyLocation>(entity =>

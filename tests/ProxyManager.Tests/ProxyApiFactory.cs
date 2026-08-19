@@ -90,5 +90,5 @@ public static class TestApi
 
     public static ProxyHostInput ValidHostInput(string domain = "app.example.com", string forwardHost = "127.0.0.1") =>
         new("Test host", [domain], true, "http", forwardHost, 8080,
-            true, true, false, true, null, null, [], [], []);
+            true, true, false, true, null, null, [], [], [], [], null, false, null, 10);
 }

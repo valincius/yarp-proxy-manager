@@ -1,7 +1,15 @@
 import { createSignal, createMemo, For, Show, type ParentProps } from 'solid-js';
 import { query } from '@solidjs/router';
 import { api, ApiError } from '../lib/api';
-import type { AccessList, CertificateDto, ProxyHeaderInput, ProxyHost, ProxyHostInput, ProxyLocationInput } from '../lib/types';
+import type {
+  AccessList,
+  CertificateDto,
+  ProxyDestinationInput,
+  ProxyHeaderInput,
+  ProxyHost,
+  ProxyHostInput,
+  ProxyLocationInput,
+} from '../lib/types';
 
 const loadCertificates = query(
   async (): Promise<CertificateDto[]> => api.get('/certificates'),
@@ -68,6 +76,17 @@ export default function HostForm(props: HostFormProps) {
   const [locations, setLocations] = createSignal<ProxyLocationInput[]>(
     props.initial?.locations.map(toLocationInput) ?? [],
   );
+  const [destinations, setDestinations] = createSignal<ProxyDestinationInput[]>(
+    props.initial?.destinations.length
+      ? props.initial.destinations.map((d) => ({ forwardHost: d.forwardHost, forwardPort: d.forwardPort }))
+      : props.initial
+        ? [{ forwardHost: props.initial.forwardHost, forwardPort: props.initial.forwardPort }]
+        : [{ forwardHost: '', forwardPort: 80 }],
+  );
+  const [loadBalancingPolicy, setLoadBalancingPolicy] = createSignal(props.initial?.loadBalancingPolicy ?? '');
+  const [healthCheckEnabled, setHealthCheckEnabled] = createSignal(props.initial?.healthCheckEnabled ?? false);
+  const [healthCheckPath, setHealthCheckPath] = createSignal(props.initial?.healthCheckPath ?? '/health');
+  const [healthCheckInterval, setHealthCheckInterval] = createSignal(props.initial?.healthCheckIntervalSeconds ?? 10);
   const certificates = createMemo(() => loadCertificates());
   const accessLists = createMemo(() => loadAccessLists());
   const [busy, setBusy] = createSignal(false);
@@ -97,6 +116,11 @@ export default function HostForm(props: HostFormProps) {
       requestHeaders: requestHeaders().filter((h) => h.name.trim().length > 0),
       responseHeaders: responseHeaders().filter((h) => h.name.trim().length > 0),
       locations: locations().filter((l) => l.pathPrefix.trim().length > 0),
+      destinations: destinations().filter((d) => d.forwardHost.trim().length > 0),
+      loadBalancingPolicy: loadBalancingPolicy() || null,
+      healthCheckEnabled: healthCheckEnabled(),
+      healthCheckPath: healthCheckPath() || null,
+      healthCheckIntervalSeconds: Number(healthCheckInterval()),
     };
 
     try {
@@ -180,6 +204,18 @@ export default function HostForm(props: HostFormProps) {
       <HeaderEditor title="Custom Request Headers" headers={requestHeaders} setHeaders={setRequestHeaders} />
       <HeaderEditor title="Custom Response Headers" headers={responseHeaders} setHeaders={setResponseHeaders} />
       <LocationEditor locations={locations} setLocations={setLocations} />
+      <DestinationEditor
+        destinations={destinations}
+        setDestinations={setDestinations}
+        loadBalancingPolicy={loadBalancingPolicy}
+        setLoadBalancingPolicy={setLoadBalancingPolicy}
+        healthCheckEnabled={healthCheckEnabled}
+        setHealthCheckEnabled={setHealthCheckEnabled}
+        healthCheckPath={healthCheckPath}
+        setHealthCheckPath={setHealthCheckPath}
+        healthCheckInterval={healthCheckInterval}
+        setHealthCheckInterval={setHealthCheckInterval}
+      />
 
       <div class="flex items-center gap-3 pt-2">
         <button
@@ -360,4 +396,115 @@ function toLocationInput(l: {
     forwardPort: l.forwardPort,
     order: l.order,
   };
+}
+
+function DestinationEditor(props: {
+  destinations: () => ProxyDestinationInput[];
+  setDestinations: (v: ProxyDestinationInput[]) => void;
+  loadBalancingPolicy: () => string;
+  setLoadBalancingPolicy: (v: string) => void;
+  healthCheckEnabled: () => boolean;
+  setHealthCheckEnabled: (v: boolean) => void;
+  healthCheckPath: () => string;
+  setHealthCheckPath: (v: string) => void;
+  healthCheckInterval: () => number;
+  setHealthCheckInterval: (v: number) => void;
+}) {
+  function update(index: number, patch: Partial<ProxyDestinationInput>) {
+    props.setDestinations(props.destinations().map((d, i) => (i === index ? { ...d, ...patch } : d)));
+  }
+
+  return (
+    <div class="rounded-lg border border-slate-200 p-4">
+      <div class="mb-2 flex items-center justify-between">
+        <span class="text-sm font-medium text-slate-700">Destinations (load balancing)</span>
+        <button
+          type="button"
+          class="text-xs font-medium text-blue-600 hover:text-blue-700"
+          onClick={() => props.setDestinations([...props.destinations(), { forwardHost: '', forwardPort: 80 }])}
+        >
+          + Add destination
+        </button>
+      </div>
+      <Show when={props.destinations().length > 0} fallback={<p class="text-xs text-slate-400">None.</p>}>
+        <div class="space-y-2">
+          <For each={props.destinations()}>
+            {(destination, index) => (
+              <div class="flex items-center gap-2">
+                <input
+                  class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="Forward host"
+                  value={destination.forwardHost}
+                  onInput={(e) => update(index(), { forwardHost: e.currentTarget.value })}
+                />
+                <input
+                  class="w-24 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  type="number"
+                  min={1}
+                  max={65535}
+                  value={destination.forwardPort}
+                  onInput={(e) => update(index(), { forwardPort: Number(e.currentTarget.value) })}
+                />
+                <button
+                  type="button"
+                  class="text-xs font-medium text-red-600 hover:text-red-700"
+                  onClick={() => props.setDestinations(props.destinations().filter((_, i) => i !== index()))}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </For>
+        </div>
+      </Show>
+      <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3">
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Load-balancing policy</span>
+          <select
+            class="mt-1 w-full rounded-md border border-slate-300 px-2 py-2 text-sm"
+            value={props.loadBalancingPolicy()}
+            onChange={(e) => props.setLoadBalancingPolicy(e.currentTarget.value)}
+          >
+            <option value="">Default (round robin)</option>
+            <option value="roundrobin">Round Robin</option>
+            <option value="leastrequests">Least Requests</option>
+            <option value="random">Random</option>
+            <option value="poweroftwochoices">Power of Two Choices</option>
+            <option value="first">First</option>
+          </select>
+        </label>
+        <label class="flex items-end gap-2 pb-2 text-sm text-slate-700">
+          <input
+            type="checkbox"
+            class="h-4 w-4 rounded border-slate-300"
+            checked={props.healthCheckEnabled()}
+            onChange={(e) => props.setHealthCheckEnabled(e.currentTarget.checked)}
+          />
+          Active health checks
+        </label>
+        <Show when={props.healthCheckEnabled()}>
+          <div class="flex gap-2">
+            <label class="block flex-1">
+              <span class="text-sm font-medium text-slate-700">Path</span>
+              <input
+                class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                value={props.healthCheckPath()}
+                onInput={(e) => props.setHealthCheckPath(e.currentTarget.value)}
+              />
+            </label>
+            <label class="block w-28">
+              <span class="text-sm font-medium text-slate-700">Interval (s)</span>
+              <input
+                class="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                type="number"
+                min={1}
+                value={props.healthCheckInterval()}
+                onInput={(e) => props.setHealthCheckInterval(Number(e.currentTarget.value))}
+              />
+            </label>
+          </div>
+        </Show>
+      </div>
+    </div>
+  );
 }

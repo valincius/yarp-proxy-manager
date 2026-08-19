@@ -1,7 +1,7 @@
 import { Title } from '@solidjs/meta';
 import { useNavigate } from '@solidjs/router';
 import { createSignal, Show } from 'solid-js';
-import { ApiError } from '../lib/api';
+import { api, ApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 
 export default function Login() {
@@ -11,6 +11,8 @@ export default function Login() {
   const [password, setPassword] = createSignal('');
   const [error, setError] = createSignal<string | null>(null);
   const [busy, setBusy] = createSignal(false);
+  const [oidcEnabled, setOidcEnabled] = createSignal(false);
+  void api.get<{ enabled: boolean }>('/auth/external-enabled').then((r) => setOidcEnabled(r.enabled));
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
@@ -63,6 +65,14 @@ export default function Login() {
         >
           {busy() ? 'Signing in…' : 'Sign in'}
         </button>
+        <Show when={oidcEnabled()}>
+          <a
+            href="/api/v1/auth/external-login"
+            class="mt-3 block w-full rounded-md border border-slate-300 px-4 py-2 text-center text-sm font-semibold text-slate-700 hover:bg-slate-50"
+          >
+            Sign in with SSO
+          </a>
+        </Show>
       </form>
     </main>
   );

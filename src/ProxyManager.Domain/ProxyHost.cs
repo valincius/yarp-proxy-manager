@@ -43,12 +43,39 @@ public sealed class ProxyHost
 
     public List<ProxyHeader> ResponseHeaders { get; set; } = [];
 
-    /// <summary>Optional custom locations: path prefixes routed to their own upstream (Phase 3 UI).</summary>
+    /// <summary>Optional custom locations: path prefixes routed to their own upstream.</summary>
     public List<ProxyLocation> Locations { get; set; } = [];
+
+    /// <summary>
+    /// Optional multiple destinations for load balancing. When empty, the single
+    /// ForwardHost/ForwardPort above is used.
+    /// </summary>
+    public List<ProxyDestination> Destinations { get; set; } = [];
+
+    /// <summary>YARP load-balancing policy ("roundrobin", "leastrequests", "random", "poweroftwochoices" or "first").</summary>
+    public string? LoadBalancingPolicy { get; set; }
+
+    public bool HealthCheckEnabled { get; set; }
+
+    public string? HealthCheckPath { get; set; }
+
+    public int HealthCheckIntervalSeconds { get; set; } = 10;
 
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }
+}
+
+/// <summary>An upstream destination for load-balanced hosts.</summary>
+public sealed class ProxyDestination
+{
+    public Guid Id { get; set; }
+
+    public Guid ProxyHostId { get; set; }
+
+    public string ForwardHost { get; set; } = string.Empty;
+
+    public int ForwardPort { get; set; } = 80;
 }
 
 /// <summary>A path-prefix location under a host, proxied to its own destination.</summary>

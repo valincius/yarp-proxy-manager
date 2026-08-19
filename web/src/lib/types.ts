@@ -15,6 +15,11 @@ export interface ProxyHost {
   requestHeaders: ProxyHeader[];
   responseHeaders: ProxyHeader[];
   locations: ProxyLocation[];
+  destinations: ProxyDestination[];
+  loadBalancingPolicy: string | null;
+  healthCheckEnabled: boolean;
+  healthCheckPath: string | null;
+  healthCheckIntervalSeconds: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +44,13 @@ export interface ProxyLocation {
   order: number;
 }
 
+export interface ProxyDestination {
+  id: string;
+  proxyHostId: string;
+  forwardHost: string;
+  forwardPort: number;
+}
+
 export interface ProxyHeaderInput {
   target: 'Request' | 'Response';
   action: 'Set' | 'Append' | 'Remove';
@@ -53,6 +65,11 @@ export interface ProxyLocationInput {
   forwardHost: string;
   forwardPort: number;
   order: number;
+}
+
+export interface ProxyDestinationInput {
+  forwardHost: string;
+  forwardPort: number;
 }
 
 export interface ProxyHostInput {
@@ -71,6 +88,11 @@ export interface ProxyHostInput {
   requestHeaders: ProxyHeaderInput[];
   responseHeaders: ProxyHeaderInput[];
   locations: ProxyLocationInput[];
+  destinations: ProxyDestinationInput[];
+  loadBalancingPolicy: string | null;
+  healthCheckEnabled: boolean;
+  healthCheckPath: string | null;
+  healthCheckIntervalSeconds: number;
 }
 
 export interface Session {

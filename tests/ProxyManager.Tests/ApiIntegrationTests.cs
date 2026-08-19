@@ -189,8 +189,8 @@ public sealed class ApiIntegrationTests
         var route = routes.Should().ContainSingle(r => r.RouteId == $"host-{created!.Id:N}").Subject;
         route.Match.Hosts.Should().Equal("projected.example.com");
         var cluster = config.Clusters.Single(c => c.ClusterId == route.ClusterId);
-        cluster.Destinations.Should().ContainKey("default");
-        cluster.Destinations["default"]!.Address.Should().Be("http://192.168.1.50:8080/");
+        cluster.Destinations.Should().ContainKey("d0");
+        cluster.Destinations["d0"]!.Address.Should().Be("http://192.168.1.50:8080/");
     }
 
     private sealed record SessionResponse(bool Authenticated, string? Email, string? DisplayName, string[] Roles);
