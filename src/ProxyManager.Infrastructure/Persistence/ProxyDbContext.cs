@@ -39,6 +39,8 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
 
     public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
 
+    public DbSet<Setting> Settings => Set<Setting>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -182,6 +184,14 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
             entity.Property(x => x.KeyHash).HasMaxLength(200).IsRequired();
             entity.Property(x => x.Prefix).HasMaxLength(20).IsRequired();
             entity.HasIndex(x => x.Prefix).IsUnique();
+        });
+
+        builder.Entity<Setting>(entity =>
+        {
+            entity.ToTable("Settings");
+            entity.HasKey(x => x.Key);
+            entity.Property(x => x.Key).HasMaxLength(200);
+            entity.Property(x => x.Value).HasMaxLength(1_000_000);
         });
     }
 }

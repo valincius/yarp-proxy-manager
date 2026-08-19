@@ -206,3 +206,8 @@ export interface StreamInput {
   forwardHost: string;
   forwardPort: number;
 }
+
+export interface NotFoundSettings {
+  mode: 'Default' | 'Empty' | 'Custom';
+  template: string;
+}

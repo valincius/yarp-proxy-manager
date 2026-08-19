@@ -16,6 +16,7 @@ using ProxyManager.Application.Certificates;
 using ProxyManager.Application.Proxy;
 using ProxyManager.Application.ProxyHosts;
 using ProxyManager.Application.Redirects;
+using ProxyManager.Application.Settings;
 using ProxyManager.Application.Streams;
 using ProxyManager.Certificates;
 using ProxyManager.Certificates.Acme;
@@ -134,6 +135,10 @@ public partial class Program
         builder.Services.AddScoped<IApiKeyRepository, ApiKeyRepository>();
         builder.Services.AddScoped<CreateApiKeyValidator>();
         builder.Services.AddScoped<ApiKeyService>();
+
+        // --- Settings (404 page, misc) ---
+        builder.Services.AddScoped<ISettingRepository, SettingRepository>();
+        builder.Services.AddScoped<SettingsService>();
 
         // --- Certificates subsystem ---
         builder.Services.AddHttpClient("CloudflareDns", client => client.Timeout = TimeSpan.FromSeconds(30));
@@ -301,6 +306,7 @@ public partial class Program
         var httpsPort = GetEndpointPort(builder.Configuration, "Kestrel:Endpoints:Https:Url", 443);
         app.UseWhen(ctx => !IsAdminPort(ctx, adminPort), proxy =>
         {
+            proxy.UseMiddleware<NotFoundPageMiddleware>();
             proxy.UseMiddleware<RedirectMiddleware>();
             proxy.UseMiddleware<AccessListMiddleware>();
             proxy.UseMiddleware<ExploitBlockMiddleware>();
