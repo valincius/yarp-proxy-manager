@@ -1,9 +1,12 @@
 import { createSignal, createMemo, For, Show, type ParentProps } from 'solid-js';
 import { query } from '@solidjs/router';
 import { api, ApiError } from '../lib/api';
+import Modal from './Modal';
+import { useToast } from '../lib/toast';
 import type {
   AccessList,
   CertificateDto,
+  DnsCredentialDto,
   ProxyDestinationInput,
   ProxyHeaderInput,
   ProxyHost,
@@ -19,6 +22,11 @@ const loadCertificates = query(
 const loadAccessLists = query(
   async (): Promise<AccessList[]> => api.get('/access-lists'),
   'host-form-access-lists',
+);
+
+const loadDnsCredentials = query(
+  async (): Promise<DnsCredentialDto[]> => api.get('/dns-credentials'),
+  'host-form-dns-credentials',
 );
 
 interface HostFormProps {
@@ -55,6 +63,7 @@ function Toggle(props: { label: string; checked: boolean; onChange: (v: boolean)
 }
 
 export default function HostForm(props: HostFormProps) {
+  const toast = useToast();
   const [name, setName] = createSignal(props.initial?.name ?? '');
   const [domains, setDomains] = createSignal(props.initial?.domainNames.join(', ') ?? '');
   const [enabled, setEnabled] = createSignal(props.initial?.enabled ?? true);
@@ -92,6 +101,10 @@ export default function HostForm(props: HostFormProps) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string[] | null>(null);
 
+  // Inline-create modals.
+  const [showCertModal, setShowCertModal] = createSignal(false);
+  const [showAccessListModal, setShowAccessListModal] = createSignal(false);
+
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     setBusy(true);
@@ -125,6 +138,7 @@ export default function HostForm(props: HostFormProps) {
 
     try {
       await props.onSubmit(input);
+      toast.push(props.initial ? 'Host updated.' : 'Host created.', 'success');
     } catch (e) {
       setError(
         e instanceof ApiError
@@ -138,7 +152,180 @@ export default function HostForm(props: HostFormProps) {
   }
 
   return (
-    <form class="max-w-2xl space-y-5 rounded-lg border border-slate-200 bg-white p-6 shadow-sm" onSubmit={submit}>
+    <>
+      <form class="max-w-2xl space-y-5 rounded-lg border border-slate-200 bg-white p-6 shadow-sm" onSubmit={submit}>
+        <Show when={error()}>
+          <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <ul class="list-disc space-y-1 pl-5">
+              <For each={error()!}>{(message) => <li>{message}</li>}</For>
+            </ul>
+          </div>
+        </Show>
+
+        <Field label="Name">
+          <input class={inputClass} value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder="My app" required />
+        </Field>
+
+        <Field label="Domain Names" hint="Comma-separated. Wildcards allowed, e.g. *.example.com.">
+          <input class={inputClass} value={domains()} onInput={(e) => setDomains(e.currentTarget.value)} placeholder="app.example.com" required />
+        </Field>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
+          <Field label="Scheme">
+            <select class={inputClass} value={scheme()} onChange={(e) => setScheme(e.currentTarget.value as 'http' | 'https')}>
+              <option value="http">http</option>
+              <option value="https">https</option>
+            </select>
+          </Field>
+          <Field label="Forward Hostname / IP">
+            <input class={inputClass} value={forwardHost()} onInput={(e) => setForwardHost(e.currentTarget.value)} placeholder="10.0.0.25" required />
+          </Field>
+          <Field label="Forward Port">
+            <input class={inputClass} type="number" min={1} max={65535} value={forwardPort()} onInput={(e) => setForwardPort(Number(e.currentTarget.value))} required />
+          </Field>
+        </div>
+
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Field label="Certificate (for HTTPS)" hint="Served for this host's domains via SNI.">
+            <div class="mt-1 flex gap-2">
+              <select class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" value={certificateId()} onChange={(e) => setCertificateId(e.currentTarget.value)}>
+                <option value="">— none —</option>
+                <For each={certificates()}>
+                  {(certificate) => (
+                    <option value={certificate.id} disabled={certificate.status !== 'Issued'}>
+                      {certificate.name} ({certificate.domains.join(', ')})
+                    </option>
+                  )}
+                </For>
+              </select>
+              <button
+                type="button"
+                class="shrink-0 rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                onClick={() => setShowCertModal(true)}
+              >
+                + New
+              </button>
+            </div>
+          </Field>
+          <Field label="Access List" hint="Allow/deny rules enforced before proxying.">
+            <div class="mt-1 flex gap-2">
+              <select class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" value={accessListId()} onChange={(e) => setAccessListId(e.currentTarget.value)}>
+                <option value="">— none —</option>
+                <For each={accessLists()}>
+                  {(list) => <option value={list.id}>{list.name}</option>}
+                </For>
+              </select>
+              <button
+                type="button"
+                class="shrink-0 rounded-md border border-slate-300 px-3 py-2 text-xs font-medium text-blue-600 hover:bg-blue-50"
+                onClick={() => setShowAccessListModal(true)}
+              >
+                + New
+              </button>
+            </div>
+          </Field>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Toggle label="Enabled" checked={enabled()} onChange={setEnabled} />
+          <Toggle label="WebSockets" checked={webSockets()} onChange={setWebSockets} />
+          <Toggle label="Block Common Exploits" checked={blockExploits()} onChange={setBlockExploits} />
+          <Toggle label="Force HTTPS (requires a certificate)" checked={forceHttps()} onChange={setForceHttps} />
+          <Toggle label="HTTP/2" checked={http2()} onChange={setHttp2} />
+        </div>
+
+        <HeaderEditor title="Custom Request Headers" headers={requestHeaders} setHeaders={setRequestHeaders} />
+        <HeaderEditor title="Custom Response Headers" headers={responseHeaders} setHeaders={setResponseHeaders} />
+        <LocationEditor locations={locations} setLocations={setLocations} />
+        <DestinationEditor
+          destinations={destinations}
+          setDestinations={setDestinations}
+          loadBalancingPolicy={loadBalancingPolicy}
+          setLoadBalancingPolicy={setLoadBalancingPolicy}
+          healthCheckEnabled={healthCheckEnabled}
+          setHealthCheckEnabled={setHealthCheckEnabled}
+          healthCheckPath={healthCheckPath}
+          setHealthCheckPath={setHealthCheckPath}
+          healthCheckInterval={healthCheckInterval}
+          setHealthCheckInterval={setHealthCheckInterval}
+        />
+
+        <div class="flex items-center gap-3 pt-2">
+          <button
+            type="submit"
+            disabled={busy()}
+            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          >
+            {busy() ? 'Saving…' : props.submitLabel}
+          </button>
+        </div>
+      </form>
+
+      <Modal open={showCertModal()} title="Request a new certificate" onClose={() => setShowCertModal(false)}>
+        <CertificateCreateModal
+          suggestedDomains={domains()}
+          onDone={(certificate) => {
+            setShowCertModal(false);
+            setCertificateId(certificate.id);
+            toast.push(`Certificate "${certificate.name}" requested.`, 'success');
+          }}
+        />
+      </Modal>
+
+      <Modal open={showAccessListModal()} title="New access list" onClose={() => setShowAccessListModal(false)}>
+        <AccessListCreateModal
+          onDone={(list) => {
+            setShowAccessListModal(false);
+            setAccessListId(list.id);
+            toast.push(`Access list "${list.name}" created.`, 'success');
+          }}
+        />
+      </Modal>
+    </>
+  );
+}
+
+function CertificateCreateModal(props: {
+  suggestedDomains: string;
+  onDone: (certificate: CertificateDto) => void;
+}) {
+  const [name, setName] = createSignal('');
+  const [domains, setDomains] = createSignal(props.suggestedDomains);
+  const [challengeType, setChallengeType] = createSignal<'Http01' | 'Dns01'>('Http01');
+  const [dnsCredentialId, setDnsCredentialId] = createSignal('');
+  const dnsCredentials = createMemo(() => loadDnsCredentials());
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal<string[] | null>(null);
+
+  async function submit(event: SubmitEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const certificate = await api.post<CertificateDto>('/certificates/issue', {
+        name: name(),
+        domains: domains()
+          .split(',')
+          .map((d) => d.trim())
+          .filter(Boolean),
+        challengeType: challengeType(),
+        dnsCredentialId: challengeType() === 'Dns01' ? dnsCredentialId() || null : null,
+      });
+      props.onDone(certificate);
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.errors && e.errors.length > 0
+            ? e.errors
+            : [e.message]
+          : ['An unexpected error occurred.'],
+      );
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form class="space-y-4" onSubmit={submit}>
       <Show when={error()}>
         <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <ul class="list-disc space-y-1 pl-5">
@@ -146,85 +333,158 @@ export default function HostForm(props: HostFormProps) {
           </ul>
         </div>
       </Show>
-
-      <Field label="Name">
-        <input class={inputClass} value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder="My app" required />
-      </Field>
-
-      <Field label="Domain Names" hint="Comma-separated. Wildcards allowed, e.g. *.example.com.">
-        <input class={inputClass} value={domains()} onInput={(e) => setDomains(e.currentTarget.value)} placeholder="app.example.com" required />
-      </Field>
-
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <Field label="Scheme">
-          <select class={inputClass} value={scheme()} onChange={(e) => setScheme(e.currentTarget.value as 'http' | 'https')}>
-            <option value="http">http</option>
-            <option value="https">https</option>
-          </select>
-        </Field>
-        <Field label="Forward Hostname / IP">
-          <input class={inputClass} value={forwardHost()} onInput={(e) => setForwardHost(e.currentTarget.value)} placeholder="10.0.0.25" required />
-        </Field>
-        <Field label="Forward Port">
-          <input class={inputClass} type="number" min={1} max={65535} value={forwardPort()} onInput={(e) => setForwardPort(Number(e.currentTarget.value))} required />
-        </Field>
-      </div>
-
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <Field label="Certificate (for HTTPS)" hint="Served for this host's domains via SNI.">
-          <select class={inputClass} value={certificateId()} onChange={(e) => setCertificateId(e.currentTarget.value)}>
-            <option value="">— none —</option>
-            <For each={certificates()}>
-              {(certificate) => (
-                <option value={certificate.id} disabled={certificate.status !== 'Issued'}>
-                  {certificate.name} ({certificate.domains.join(', ')})
-                </option>
-              )}
-            </For>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Name</span>
+          <input class={inputClass} value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder="My app cert" required />
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Domains</span>
+          <input class={inputClass} value={domains()} onInput={(e) => setDomains(e.currentTarget.value)} placeholder="app.example.com, *.example.com" required />
+          <span class="mt-1 block text-xs text-slate-500">Pre-filled from the host's domains — adjust if needed.</span>
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Challenge type</span>
+          <select class={inputClass} value={challengeType()} onChange={(e) => setChallengeType(e.currentTarget.value as 'Http01' | 'Dns01')}>
+            <option value="Http01">HTTP-01 (port 80)</option>
+            <option value="Dns01">DNS-01 (TXT record — wildcards)</option>
           </select>
-        </Field>
-        <Field label="Access List" hint="Allow/deny rules enforced before proxying.">
-          <select class={inputClass} value={accessListId()} onChange={(e) => setAccessListId(e.currentTarget.value)}>
-            <option value="">— none —</option>
-            <For each={accessLists()}>
-              {(list) => <option value={list.id}>{list.name}</option>}
-            </For>
-          </select>
-        </Field>
+        </label>
+        <Show when={challengeType() === 'Dns01'}>
+          <label class="block">
+            <span class="text-sm font-medium text-slate-700">DNS credential</span>
+            <select class={inputClass} value={dnsCredentialId()} onChange={(e) => setDnsCredentialId(e.currentTarget.value)} required>
+              <option value="">Select credential…</option>
+              <For each={dnsCredentials()}>
+                {(credential) => <option value={credential.id}>{credential.name} ({credential.provider})</option>}
+              </For>
+            </select>
+            <span class="mt-1 block text-xs text-slate-500">Add one on the Settings → Certificates page if none exist.</span>
+          </label>
+        </Show>
       </div>
-
-      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <Toggle label="Enabled" checked={enabled()} onChange={setEnabled} />
-        <Toggle label="WebSockets" checked={webSockets()} onChange={setWebSockets} />
-        <Toggle label="Block Common Exploits" checked={blockExploits()} onChange={setBlockExploits} />
-        <Toggle label="Force HTTPS (requires a certificate)" checked={forceHttps()} onChange={setForceHttps} />
-        <Toggle label="HTTP/2" checked={http2()} onChange={setHttp2} />
-      </div>
-
-      <HeaderEditor title="Custom Request Headers" headers={requestHeaders} setHeaders={setRequestHeaders} />
-      <HeaderEditor title="Custom Response Headers" headers={responseHeaders} setHeaders={setResponseHeaders} />
-      <LocationEditor locations={locations} setLocations={setLocations} />
-      <DestinationEditor
-        destinations={destinations}
-        setDestinations={setDestinations}
-        loadBalancingPolicy={loadBalancingPolicy}
-        setLoadBalancingPolicy={setLoadBalancingPolicy}
-        healthCheckEnabled={healthCheckEnabled}
-        setHealthCheckEnabled={setHealthCheckEnabled}
-        healthCheckPath={healthCheckPath}
-        setHealthCheckPath={setHealthCheckPath}
-        healthCheckInterval={healthCheckInterval}
-        setHealthCheckInterval={setHealthCheckInterval}
-      />
-
       <div class="flex items-center gap-3 pt-2">
         <button
           type="submit"
           disabled={busy()}
-          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
         >
-          {busy() ? 'Saving…' : props.submitLabel}
+          {busy() ? 'Requesting…' : 'Request certificate'}
         </button>
+        <span class="text-xs text-slate-500">Issuance can take up to a minute (DNS propagation).</span>
+      </div>
+    </form>
+  );
+}
+
+interface RuleRow {
+  action: 'Allow' | 'Deny';
+  pattern: string;
+}
+
+function AccessListCreateModal(props: { onDone: (list: AccessList) => void }) {
+  const [name, setName] = createSignal('');
+  const [satisfyAny, setSatisfyAny] = createSignal(true);
+  const [rules, setRules] = createSignal<RuleRow[]>([{ action: 'Allow', pattern: '*' }]);
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal<string[] | null>(null);
+
+  function updateRule(index: number, patch: Partial<RuleRow>) {
+    setRules((rows) => rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  async function submit(event: SubmitEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const list = await api.post<AccessList>('/access-lists', {
+        name: name(),
+        satisfyAny: satisfyAny(),
+        rules: rules().filter((r) => r.pattern.trim().length > 0),
+      });
+      props.onDone(list);
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? e.errors && e.errors.length > 0
+            ? e.errors
+            : [e.message]
+          : ['An unexpected error occurred.'],
+      );
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form class="space-y-4" onSubmit={submit}>
+      <Show when={error()}>
+        <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <ul class="list-disc space-y-1 pl-5">
+            <For each={error()!}>{(message) => <li>{message}</li>}</For>
+          </ul>
+        </div>
+      </Show>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Name</span>
+          <input class={inputClass} value={name()} onInput={(e) => setName(e.currentTarget.value)} required />
+        </label>
+        <label class="flex items-end gap-2 pb-2 text-sm text-slate-700">
+          <input type="checkbox" class="h-4 w-4 rounded border-slate-300" checked={satisfyAny()} onChange={(e) => setSatisfyAny(e.currentTarget.checked)} />
+          Satisfy Any (allow if any rule matches)
+        </label>
+      </div>
+      <div>
+        <div class="mb-2 flex items-center justify-between">
+          <span class="text-sm font-medium text-slate-700">Rules</span>
+          <button
+            type="button"
+            class="text-xs font-medium text-blue-600 hover:text-blue-700"
+            onClick={() => setRules((rows) => [...rows, { action: 'Allow', pattern: '' }])}
+          >
+            + Add rule
+          </button>
+        </div>
+        <div class="space-y-2">
+          <For each={rules()}>
+            {(rule, index) => (
+              <div class="flex items-center gap-2">
+                <select
+                  class="w-28 rounded-md border border-slate-300 px-2 py-2 text-sm"
+                  value={rule.action}
+                  onChange={(e) => updateRule(index(), { action: e.currentTarget.value as 'Allow' | 'Deny' })}
+                >
+                  <option value="Allow">Allow</option>
+                  <option value="Deny">Deny</option>
+                </select>
+                <input
+                  class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  placeholder="IP, CIDR, or *"
+                  value={rule.pattern}
+                  onInput={(e) => updateRule(index(), { pattern: e.currentTarget.value })}
+                />
+                <button
+                  type="button"
+                  class="text-xs font-medium text-red-600 hover:text-red-700"
+                  onClick={() => setRules((rows) => rows.filter((_, i) => i !== index()))}
+                >
+                  Remove
+                </button>
+              </div>
+            )}
+          </For>
+        </div>
+      </div>
+      <div class="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={busy()}
+          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+        >
+          {busy() ? 'Creating…' : 'Create access list'}
+        </button>
+        <span class="text-xs text-slate-500">The list is applied to this host once saved.</span>
       </div>
     </form>
   );

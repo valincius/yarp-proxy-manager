@@ -3,7 +3,8 @@ import { createSignal, For, Show } from 'solid-js';
 import { createMemo } from 'solid-js';
 import { query, revalidate } from '@solidjs/router';
 import { api, ApiError } from '../../lib/api';
-import type { AccessList, AccessListInput, AccessListRule } from '../../lib/types';
+import Modal from '../../components/Modal';
+import type { AccessList, AccessListInput } from '../../lib/types';
 
 const loadAccessLists = query(async (): Promise<AccessList[]> => api.get('/access-lists'), 'access-lists');
 
@@ -17,10 +18,36 @@ function toMessages(error: unknown): string[] {
   return [error instanceof Error ? error.message : 'An unexpected error occurred.'];
 }
 
+function ErrorBanner(props: { messages: string[] | null }) {
+  return (
+    <Show when={props.messages && props.messages.length > 0}>
+      <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <ul class="list-disc space-y-1 pl-5">
+          <For each={props.messages!}>{(message) => <li>{message}</li>}</For>
+        </ul>
+      </div>
+    </Show>
+  );
+}
+
 export default function AccessLists() {
   const lists = createMemo(() => loadAccessLists());
   const [editing, setEditing] = createSignal<AccessList | null>(null);
   const [showForm, setShowForm] = createSignal(false);
+  // Rows whose rules are expanded; collapsed by default.
+  const [expanded, setExpanded] = createSignal<Set<string>>(new Set());
+
+  function toggleExpanded(id: string) {
+    setExpanded((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }
 
   async function remove(list: AccessList) {
     if (!confirm(`Delete access list "${list.name}"?`)) {
@@ -46,63 +73,125 @@ export default function AccessLists() {
         </button>
       </div>
 
-      <Show when={showForm()}>
-        <div class="mb-6">
-          <AccessListForm
-            initial={editing() ?? undefined}
-            onDone={() => {
-              setShowForm(false);
-              revalidate('access-lists');
-            }}
-          />
-        </div>
-      </Show>
+      <Modal
+        open={showForm()}
+        title={editing() ? `Edit access list "${editing()!.name}"` : 'New access list'}
+        onClose={() => setShowForm(false)}
+      >
+        <AccessListForm
+          initial={editing() ?? undefined}
+          onDone={() => {
+            setShowForm(false);
+            revalidate('access-lists');
+          }}
+        />
+      </Modal>
 
       <Show when={lists().length > 0} fallback={<p class="text-sm text-slate-500">No access lists yet.</p>}>
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <For each={lists()}>
-            {(list) => (
-              <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
-                <div class="mb-3 flex items-center justify-between">
-                  <h2 class="font-medium text-slate-800">{list.name}</h2>
-                  <div class="flex gap-2">
-                    <button
-                      class="text-xs font-medium text-blue-600 hover:text-blue-700"
-                      onClick={() => {
-                        setEditing(list);
-                        setShowForm(true);
-                      }}
-                    >
-                      Edit
-                    </button>
-                    <button class="text-xs font-medium text-red-600 hover:text-red-700" onClick={() => void remove(list)}>
-                      Delete
-                    </button>
-                  </div>
-                </div>
-                <p class="mb-2 text-xs text-slate-500">
-                  {list.satisfyAny ? 'Satisfy Any' : 'Satisfy All'} · {list.rules.length} rules
-                </p>
-                <ul class="divide-y divide-slate-100 text-sm">
-                  <For each={list.rules}>
-                    {(rule) => (
-                      <li class="flex items-center justify-between py-1.5">
-                        <span class="text-slate-700">{rule.pattern}</span>
+        <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
+          <thead>
+            <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
+              <th class="w-10 px-4 py-3"></th>
+              <th class="px-4 py-3">Name</th>
+              <th class="px-4 py-3">Policy</th>
+              <th class="px-4 py-3">Rules</th>
+              <th class="px-4 py-3 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            <For each={lists()}>
+              {(list) => {
+                const isExpanded = () => expanded().has(list.id);
+                return (
+                  <>
+                    <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50">
+                      <td class="px-4 py-3">
+                        <button
+                          class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
+                          onClick={() => toggleExpanded(list.id)}
+                          aria-label={isExpanded() ? 'Collapse rules' : 'Expand rules'}
+                        >
+                          <svg
+                            class={`h-4 w-4 transition-transform ${isExpanded() ? 'rotate-90' : ''}`}
+                            viewBox="0 0 20 20"
+                            fill="currentColor"
+                          >
+                            <path
+                              fill-rule="evenodd"
+                              d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z"
+                              clip-rule="evenodd"
+                            />
+                          </svg>
+                        </button>
+                      </td>
+                      <td class="px-4 py-3 font-medium text-slate-800">{list.name}</td>
+                      <td class="px-4 py-3">
                         <span
-                          class={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                            rule.action === 'Allow' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                          class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
+                            list.satisfyAny ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
                           }`}
                         >
-                          {rule.action}
+                          {list.satisfyAny ? 'Satisfy Any' : 'Satisfy All'}
                         </span>
-                      </li>
-                    )}
-                  </For>
-                </ul>
-              </div>
-            )}
-          </For>
-        </div>
+                      </td>
+                      <td class="px-4 py-3 text-slate-600">{list.rules.length} rule{list.rules.length === 1 ? '' : 's'}</td>
+                      <td class="px-4 py-3">
+                        <div class="flex items-center justify-end gap-2">
+                          <button
+                            class="text-xs font-medium text-blue-600 hover:text-blue-700"
+                            onClick={() => {
+                              setEditing(list);
+                              setShowForm(true);
+                            }}
+                          >
+                            Edit
+                          </button>
+                          <button class="text-xs font-medium text-red-600 hover:text-red-700" onClick={() => void remove(list)}>
+                            Delete
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                    <Show when={isExpanded()}>
+                      <tr class="border-b border-slate-100 bg-slate-50/60 last:border-0">
+                        <td class="px-4 py-3"></td>
+                        <td colspan={5} class="px-4 py-3">
+                          <Show
+                            when={list.rules.length > 0}
+                            fallback={<p class="text-xs text-slate-400">No rules — this list matches nothing.</p>}
+                          >
+                            <ul class="max-w-lg divide-y divide-slate-100 rounded-md border border-slate-200 bg-white text-sm">
+                              <For each={list.rules}>
+                                {(rule) => (
+                                  <li class="flex items-center justify-between px-3 py-2">
+                                    <code class="text-slate-700">{rule.pattern}</code>
+                                    <span
+                                      class={`rounded-full px-2 py-0.5 text-xs font-medium ${
+                                        rule.action === 'Allow' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'
+                                      }`}
+                                    >
+                                      {rule.action}
+                                    </span>
+                                  </li>
+                                )}
+                              </For>
+                            </ul>
+                            <p class="mt-2 text-xs text-slate-500">
+                              {list.satisfyAny
+                                ? 'A request is allowed if any rule matches.'
+                                : 'A request is allowed only if every rule matches.'}{' '}
+                              Rules accept an IP address, a CIDR block, or <code>*</code> for everything.
+                            </p>
+                          </Show>
+                        </td>
+                      </tr>
+                    </Show>
+                  </>
+                );
+              }}
+            </For>
+          </tbody>
+        </table>
       </Show>
     </section>
   );
@@ -149,14 +238,8 @@ function AccessListForm(props: { initial?: AccessList; onDone: () => void }) {
   }
 
   return (
-    <form class="max-w-2xl space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm" onSubmit={submit}>
-      <Show when={error()}>
-        <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-          <ul class="list-disc space-y-1 pl-5">
-            <For each={error()!}>{(message) => <li>{message}</li>}</For>
-          </ul>
-        </div>
-      </Show>
+    <form class="space-y-4" onSubmit={submit}>
+      <ErrorBanner messages={error()} />
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Name</span>
@@ -208,15 +291,24 @@ function AccessListForm(props: { initial?: AccessList; onDone: () => void }) {
             )}
           </For>
         </div>
+        <p class="mt-2 text-xs text-slate-500">
+          Each rule is an IP address (e.g. <code>192.168.1.10</code>), a CIDR block (e.g. <code>10.0.0.0/8</code>), or{' '}
+          <code>*</code> to match every address.
+        </p>
       </div>
 
-      <button
-        type="submit"
-        disabled={busy()}
-        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-      >
-        {busy() ? 'Saving…' : props.initial ? 'Save changes' : 'Create access list'}
-      </button>
+      <div class="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={busy()}
+          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+        >
+          {busy() ? 'Saving…' : props.initial ? 'Save changes' : 'Create access list'}
+        </button>
+        <button type="button" class="text-sm font-medium text-slate-600 hover:text-slate-900" onClick={props.onDone}>
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }

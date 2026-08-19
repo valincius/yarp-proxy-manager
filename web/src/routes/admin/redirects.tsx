@@ -3,6 +3,7 @@ import { createSignal, For, Show } from 'solid-js';
 import { createMemo } from 'solid-js';
 import { query, revalidate } from '@solidjs/router';
 import { api, ApiError } from '../../lib/api';
+import Modal from '../../components/Modal';
 import type { RedirectHost, RedirectHostInput } from '../../lib/types';
 
 const loadRedirects = query(async (): Promise<RedirectHost[]> => api.get('/redirects'), 'redirects');
@@ -58,17 +59,19 @@ export default function Redirects() {
         </button>
       </div>
 
-      <Show when={showForm()}>
-        <div class="mb-6">
-          <RedirectForm
-            initial={editing() ?? undefined}
-            onDone={() => {
-              setShowForm(false);
-              revalidate('redirects');
-            }}
-          />
-        </div>
-      </Show>
+      <Modal
+        open={showForm()}
+        title={editing() ? `Edit redirect "${editing()!.name}"` : 'New redirect'}
+        onClose={() => setShowForm(false)}
+      >
+        <RedirectForm
+          initial={editing() ?? undefined}
+          onDone={() => {
+            setShowForm(false);
+            revalidate('redirects');
+          }}
+        />
+      </Modal>
 
       <Show when={redirects().length > 0} fallback={<p class="text-sm text-slate-500">No redirects yet.</p>}>
         <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
@@ -89,7 +92,6 @@ export default function Redirects() {
                   <td class="px-4 py-3 text-slate-600">{redirect.domainNames.join(', ')}</td>
                   <td class="px-4 py-3 text-slate-600">
                     {redirect.forwardScheme}://{redirect.forwardHost}:{redirect.forwardPort}
-                    {redirect.preservePath ? ' (path)' : ''}
                   </td>
                   <td class="px-4 py-3">
                     <span
@@ -99,6 +101,14 @@ export default function Redirects() {
                     >
                       {redirect.enabled ? `Active (${redirect.statusCode})` : 'Disabled'}
                     </span>
+                    {redirect.preservePath ? (
+                      <span
+                        class="ml-1 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700"
+                        title="The original request path and query string are appended to the redirect target."
+                      >
+                        path preserved
+                      </span>
+                    ) : null}
                   </td>
                   <td class="px-4 py-3">
                     <div class="flex items-center justify-end gap-2">
@@ -170,7 +180,7 @@ function RedirectForm(props: { initial?: RedirectHost; onDone: () => void }) {
   }
 
   return (
-    <form class="max-w-2xl space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm" onSubmit={submit}>
+    <form class="space-y-4" onSubmit={submit}>
       <ErrorBanner messages={error()} />
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="block">
@@ -179,7 +189,16 @@ function RedirectForm(props: { initial?: RedirectHost; onDone: () => void }) {
         </label>
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Domains</span>
-          <input class={inputClass} value={domains()} onInput={(e) => setDomains(e.currentTarget.value)} placeholder="old.example.com" required />
+          <input
+            class={inputClass}
+            value={domains()}
+            onInput={(e) => setDomains(e.currentTarget.value)}
+            placeholder="old.example.com"
+            required
+          />
+          <span class="mt-1 block text-xs text-slate-500">
+            Requests for these hostnames are redirected. Comma-separate multiple domains.
+          </span>
         </label>
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Redirect scheme</span>
@@ -214,13 +233,18 @@ function RedirectForm(props: { initial?: RedirectHost; onDone: () => void }) {
           Enabled
         </label>
       </div>
-      <button
-        type="submit"
-        disabled={busy()}
-        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-      >
-        {busy() ? 'Saving…' : props.initial ? 'Save changes' : 'Create redirect'}
-      </button>
+      <div class="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={busy()}
+          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+        >
+          {busy() ? 'Saving…' : props.initial ? 'Save changes' : 'Create redirect'}
+        </button>
+        <button type="button" class="text-sm font-medium text-slate-600 hover:text-slate-900" onClick={props.onDone}>
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }

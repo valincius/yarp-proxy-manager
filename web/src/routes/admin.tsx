@@ -1,7 +1,8 @@
 import type { ParentProps } from 'solid-js';
-import { createEffect, Show } from 'solid-js';
+import { createEffect, createSignal, Show } from 'solid-js';
 import { useLocation, useNavigate } from '@solidjs/router';
 import { useAuth } from '../lib/auth';
+import GlobalSearch from '../components/GlobalSearch';
 
 const activeNav = 'block rounded-md bg-slate-700 px-3 py-2 text-sm font-medium text-white';
 const inactiveNav = 'block rounded-md px-3 py-2 text-sm font-medium text-slate-300 hover:bg-slate-800 hover:text-white';
@@ -11,6 +12,7 @@ export default function AdminLayout(props: ParentProps) {
   const auth = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchOpen, setSearchOpen] = createSignal(false);
 
   // In Solid 2's compute/effect split the effect fn receives (next, prev) —
   // next is the compute result itself, so destructure the [ready, session]
@@ -21,18 +23,43 @@ export default function AdminLayout(props: ParentProps) {
     }
   });
 
+  // Ctrl/Cmd+K opens global search.
+  createEffect(
+    () => [auth.ready(), auth.session()] as const,
+    ([ready, session]) => {
+      if (!ready || !session) return;
+      const onKey = (event: KeyboardEvent) => {
+        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+          event.preventDefault();
+          setSearchOpen(true);
+        }
+      };
+      window.addEventListener('keydown', onKey);
+      return () => window.removeEventListener('keydown', onKey);
+    },
+  );
+
   const isActive = (path: string) =>
     location.pathname === path || location.pathname.startsWith(path + '/');
 
   return (
     <Show when={auth.ready()} fallback={<main class="p-8 text-center text-slate-500">Loading…</main>}>
       <Show when={auth.session()}>
-        <div class="flex min-h-screen bg-slate-100">
-          <aside class="flex w-60 flex-col bg-slate-900 text-slate-100">
+        <div class="flex h-screen overflow-hidden bg-slate-100">
+          <aside class="flex w-60 shrink-0 flex-col bg-slate-900 text-slate-100">
             <div class="border-b border-slate-800 px-4 py-4 text-sm font-semibold tracking-wide">
               YARP Proxy Manager
             </div>
-            <nav class="flex flex-col gap-1 p-3">
+            <div class="p-3">
+              <button
+                class="flex w-full items-center justify-between rounded-md bg-slate-800 px-3 py-2 text-sm text-slate-400 hover:bg-slate-700 hover:text-slate-200"
+                onClick={() => setSearchOpen(true)}
+              >
+                <span>Search…</span>
+                <kbd class="rounded border border-slate-600 px-1 text-xs">Ctrl K</kbd>
+              </button>
+            </div>
+            <nav class="flex flex-col gap-1 overflow-y-auto p-3">
               <a href="/admin" class={isActive('/admin') && location.pathname === '/admin' ? activeNav : inactiveNav}>
                 Dashboard
               </a>
@@ -54,6 +81,9 @@ export default function AdminLayout(props: ParentProps) {
               <a href="/admin/audit" class={isActive('/admin/audit') ? activeNav : inactiveNav}>
                 Audit Log
               </a>
+              <a href="/admin/settings" class={isActive('/admin/settings') ? activeNav : inactiveNav}>
+                Settings
+              </a>
               <a href="/admin/backup" class={isActive('/admin/backup') ? activeNav : inactiveNav}>
                 Backup & Restore
               </a>
@@ -71,8 +101,9 @@ export default function AdminLayout(props: ParentProps) {
               </button>
             </div>
           </aside>
-          <main class="flex-1 overflow-x-auto p-8">{props.children}</main>
+          <main class="flex-1 overflow-y-auto p-8">{props.children}</main>
         </div>
+        <GlobalSearch open={searchOpen()} onClose={() => setSearchOpen(false)} />
       </Show>
     </Show>
   );

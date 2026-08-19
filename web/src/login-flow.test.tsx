@@ -71,7 +71,7 @@ describe('login flow', () => {
     });
     // "Dashboard" appears in both the sidebar nav link and the page heading.
     await screen.findByRole('heading', { name: 'Dashboard' });
-    expect(screen.getByText('Recent Proxy Hosts')).toBeInTheDocument();
+    expect(screen.getByText('Recently Accessed')).toBeInTheDocument();
 
     // Give any stray redirect a chance to fire, then confirm we're still there.
     await new Promise((r) => setTimeout(r, 50));

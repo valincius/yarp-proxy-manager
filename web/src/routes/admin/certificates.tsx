@@ -3,16 +3,17 @@ import { createSignal, For, Show } from 'solid-js';
 import { api, ApiError } from '../../lib/api';
 import { query, revalidate } from '@solidjs/router';
 import { createMemo } from 'solid-js';
-import type { AcmeSettings, CertificateDto, DnsCredentialDto } from '../../lib/types';
+import Modal from '../../components/Modal';
+import { useToast } from '../../lib/toast';
+import type { CertificateDto, DnsCredentialDto } from '../../lib/types';
 
 const loadCertificates = query(
-  async (): Promise<{ certificates: CertificateDto[]; credentials: DnsCredentialDto[]; settings: AcmeSettings }> => {
-    const [certificates, credentials, settings] = await Promise.all([
+  async (): Promise<{ certificates: CertificateDto[]; credentials: DnsCredentialDto[] }> => {
+    const [certificates, credentials] = await Promise.all([
       api.get<CertificateDto[]>('/certificates'),
       api.get<DnsCredentialDto[]>('/dns-credentials'),
-      api.get<AcmeSettings>('/acme-settings'),
     ]);
-    return { certificates, credentials, settings };
+    return { certificates, credentials };
   },
   'certificates',
 );
@@ -41,21 +42,66 @@ function toMessages(error: unknown): string[] {
 
 export default function Certificates() {
   const data = createMemo(() => loadCertificates());
+  const [showIssue, setShowIssue] = createSignal(false);
+  const [showUpload, setShowUpload] = createSignal(false);
+  const [showCredential, setShowCredential] = createSignal(false);
+  const [viewing, setViewing] = createSignal<CertificateDto | null>(null);
 
   return (
     <section class="space-y-8">
       <Title>SSL Certificates - YARP Proxy Manager</Title>
       <div class="flex items-center justify-between">
         <h1 class="text-2xl font-semibold text-slate-800">SSL Certificates</h1>
+        <div class="flex gap-2">
+          <button
+            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
+            onClick={() => setShowIssue(true)}
+          >
+            + Request certificate
+          </button>
+          <button
+            class="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+            onClick={() => setShowUpload(true)}
+          >
+            Upload
+          </button>
+        </div>
       </div>
 
-      <SettingsSection />
-      <IssueSection credentials={data().credentials} />
-      <UploadSection />
-      <CredentialsSection credentials={data().credentials} />
+      <Modal open={showIssue()} title="Request a new certificate" onClose={() => setShowIssue(false)}>
+        <IssueSection credentials={data().credentials} onDone={() => setShowIssue(false)} />
+      </Modal>
+
+      <Modal open={showUpload()} title="Upload a certificate" onClose={() => setShowUpload(false)}>
+        <UploadSection onDone={() => setShowUpload(false)} />
+      </Modal>
+
+      <Modal open={showCredential()} title="Add DNS credential" onClose={() => setShowCredential(false)}>
+        <CredentialForm onDone={() => setShowCredential(false)} />
+      </Modal>
+
+      <Modal
+        open={viewing() !== null}
+        title={viewing() ? `Certificate: ${viewing()!.name}` : ''}
+        onClose={() => setViewing(null)}
+        size="max-w-xl"
+      >
+        <CertificateDetail certificate={viewing()} onClose={() => setViewing(null)} />
+      </Modal>
+
+      <CredentialsSection credentials={data().credentials} onAdd={() => setShowCredential(true)} />
 
       <div>
-        <h2 class="mb-3 text-lg font-medium text-slate-800">Certificates</h2>
+        <div class="mb-3 flex items-center justify-between">
+          <h2 class="text-lg font-medium text-slate-800">Certificates</h2>
+          <span class="text-xs text-slate-500">
+            ACME account settings live on the{' '}
+            <a href="/admin/settings" class="text-blue-600 hover:text-blue-700">
+              Settings
+            </a>{' '}
+            page.
+          </span>
+        </div>
         <Show when={data().certificates.length > 0} fallback={<p class="text-sm text-slate-500">No certificates yet.</p>}>
           <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
             <thead>
@@ -71,7 +117,7 @@ export default function Certificates() {
             <tbody>
               <For each={data().certificates}>
                 {(certificate) => (
-                  <CertificateRow certificate={certificate} />
+                  <CertificateRow certificate={certificate} onView={() => setViewing(certificate)} />
                 )}
               </For>
             </tbody>
@@ -82,7 +128,112 @@ export default function Certificates() {
   );
 }
 
-function CertificateRow(props: { certificate: CertificateDto }) {
+function CertificateDetail(props: { certificate: CertificateDto | null; onClose: () => void }) {
+  const toast = useToast();
+  const certificate = () => props.certificate;
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal<string[] | null>(null);
+
+  async function renew() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post(`/certificates/${certificate()!.id}/renew`);
+      toast.push(`Renewal started for "${certificate()!.name}".`, 'info');
+      revalidate('certificates');
+      props.onClose();
+    } catch (e) {
+      setError(toMessages(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function remove() {
+    if (!confirm(`Delete certificate "${certificate()?.name}"?`)) {
+      return;
+    }
+    try {
+      await api.del(`/certificates/${certificate()!.id}`);
+      toast.push('Certificate deleted.', 'success');
+      revalidate('certificates');
+      props.onClose();
+    } catch (e) {
+      setError(toMessages(e));
+    }
+  }
+
+  return (
+    <Show when={certificate()}>
+      <div class="space-y-4">
+        <ErrorBanner messages={error()} />
+        <dl class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <Detail label="Name" value={certificate()!.name} />
+          <Detail label="Provider" value={certificate()!.provider === 'Acme' ? 'Let\'s Encrypt (ACME)' : 'Manual upload'} />
+          <Detail label="Status" value={certificate()!.status} />
+          <Detail label="Challenge" value={certificate()!.challengeType === 'Dns01' ? 'DNS-01 (TXT record)' : certificate()!.challengeType === 'Http01' ? 'HTTP-01' : '—'} />
+          <div class="sm:col-span-2">
+            <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">Domains</dt>
+            <dd class="mt-1 flex flex-wrap gap-1">
+              <For each={certificate()!.domains}>
+                {(domain) => (
+                  <code class="rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-700">{domain}</code>
+                )}
+              </For>
+            </dd>
+          </div>
+          <Detail label="Not valid before" value={formatDate(certificate()!.notBefore)} />
+          <Detail label="Not valid after" value={formatDate(certificate()!.notAfter)} />
+          <Detail label="Last renewal attempt" value={formatDate(certificate()!.lastRenewalAttempt)} />
+          <Detail label="Created" value={formatDate(certificate()!.createdAt)} />
+        </dl>
+        <Show when={certificate()!.lastRenewalError}>
+          <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <p class="font-medium">Last renewal error</p>
+            <p class="mt-1 break-words text-xs">{certificate()!.lastRenewalError}</p>
+          </div>
+        </Show>
+        <div class="flex items-center gap-3 pt-2">
+          <Show when={certificate()!.provider === 'Acme'}>
+            <button
+              disabled={busy()}
+              class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+              onClick={() => void renew()}
+            >
+              {busy() ? 'Renewing…' : 'Renew now'}
+            </button>
+          </Show>
+          <button
+            class="rounded-md border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-700 shadow-sm hover:bg-red-50"
+            onClick={() => void remove()}
+          >
+            Delete
+          </button>
+          <button class="text-sm font-medium text-slate-600 hover:text-slate-900" onClick={props.onClose}>
+            Close
+          </button>
+        </div>
+      </div>
+    </Show>
+  );
+}
+
+function Detail(props: { label: string; value: string }) {
+  return (
+    <div>
+      <dt class="text-xs font-medium uppercase tracking-wide text-slate-500">{props.label}</dt>
+      <dd class="mt-1 text-sm text-slate-800">{props.value}</dd>
+    </div>
+  );
+}
+
+function formatDate(value: string | null): string {
+  if (!value) return '—';
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function CertificateRow(props: { certificate: CertificateDto; onView: () => void }) {
   const certificate = () => props.certificate;
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string[] | null>(null);
@@ -137,6 +288,9 @@ function CertificateRow(props: { certificate: CertificateDto }) {
       <td class={`px-4 py-3 ${expiry().tone}`}>{expiry().label}</td>
       <td class="px-4 py-3">
         <div class="flex items-center justify-end gap-2">
+          <button class="text-xs font-medium text-slate-600 hover:text-slate-900" onClick={props.onView}>
+            View
+          </button>
           <Show when={certificate().provider === 'Acme'}>
             <button
               disabled={busy()}
@@ -170,81 +324,20 @@ function StatusBadge(props: { status: string }) {
   );
 }
 
-function SettingsSection() {
-  const settings = createMemo(() => loadCertificates());
-  const [email, setEmail] = createSignal(settings().settings.email);
-  const [staging, setStaging] = createSignal(settings().settings.staging);
-  const [busy, setBusy] = createSignal(false);
-  const [saved, setSaved] = createSignal(false);
-  const [error, setError] = createSignal<string[] | null>(null);
-
-  async function save(event: SubmitEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setSaved(false);
-    setError(null);
-    try {
-      await api.put('/acme-settings', { email: email(), directoryUrl: '', staging: staging() });
-      setSaved(true);
-      revalidate('certificates');
-    } catch (e) {
-      setError(toMessages(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 class="mb-4 text-lg font-medium text-slate-800">ACME Account</h2>
-      <ErrorBanner messages={error()} />
-      <Show when={saved()}>
-        <div class="mb-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">Settings saved.</div>
-      </Show>
-      <form class="grid grid-cols-1 gap-4 sm:grid-cols-2" onSubmit={save}>
-        <label class="block">
-          <span class="text-sm font-medium text-slate-700">Account email</span>
-          <input type="email" required class={inputClass} value={email()} onInput={(e) => setEmail(e.currentTarget.value)} />
-        </label>
-        <label class="flex items-end gap-2 pb-2">
-          <input
-            type="checkbox"
-            class="h-4 w-4 rounded border-slate-300 text-blue-600"
-            checked={staging()}
-            onChange={(e) => setStaging(e.currentTarget.checked)}
-          />
-          <span class="text-sm text-slate-700">Use Let's Encrypt staging CA (no rate limits)</span>
-        </label>
-        <div>
-          <button
-            type="submit"
-            disabled={busy()}
-            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-          >
-            {busy() ? 'Saving…' : 'Save ACME settings'}
-          </button>
-        </div>
-      </form>
-    </section>
-  );
-}
-
-function IssueSection(props: { credentials: DnsCredentialDto[] }) {
+function IssueSection(props: { credentials: DnsCredentialDto[]; onDone: () => void }) {
   const [name, setName] = createSignal('');
   const [domains, setDomains] = createSignal('');
   const [challengeType, setChallengeType] = createSignal<'Http01' | 'Dns01'>('Http01');
   const [dnsCredentialId, setDnsCredentialId] = createSignal('');
   const [busy, setBusy] = createSignal(false);
-  const [result, setResult] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string[] | null>(null);
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     setBusy(true);
-    setResult(null);
     setError(null);
     try {
-      const certificate = await api.post<CertificateDto>('/certificates/issue', {
+      await api.post<CertificateDto>('/certificates/issue', {
         name: name(),
         domains: domains()
           .split(',')
@@ -253,9 +346,9 @@ function IssueSection(props: { credentials: DnsCredentialDto[] }) {
         challengeType: challengeType(),
         dnsCredentialId: challengeType() === 'Dns01' ? dnsCredentialId() || null : null,
       });
-      setResult(`Certificate "${certificate.name}" issued (status: ${certificate.status}).`);
       revalidate('certificates');
       revalidate('hosts');
+      props.onDone();
     } catch (e) {
       setError(toMessages(e));
     } finally {
@@ -264,13 +357,9 @@ function IssueSection(props: { credentials: DnsCredentialDto[] }) {
   }
 
   return (
-    <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 class="mb-4 text-lg font-medium text-slate-800">Request a new certificate</h2>
+    <form class="space-y-4" onSubmit={submit}>
       <ErrorBanner messages={error()} />
-      <Show when={result()}>
-        <div class="mb-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">{result()}</div>
-      </Show>
-      <form class="grid grid-cols-1 gap-4 sm:grid-cols-2" onSubmit={submit}>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Name</span>
           <input class={inputClass} value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder="My app cert" required />
@@ -278,6 +367,7 @@ function IssueSection(props: { credentials: DnsCredentialDto[] }) {
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Domains</span>
           <input class={inputClass} value={domains()} onInput={(e) => setDomains(e.currentTarget.value)} placeholder="app.example.com, *.example.com" required />
+          <span class="mt-1 block text-xs text-slate-500">Wildcard domains require DNS-01.</span>
         </label>
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Challenge type</span>
@@ -297,22 +387,22 @@ function IssueSection(props: { credentials: DnsCredentialDto[] }) {
             </select>
           </label>
         </Show>
-        <div class="sm:col-span-2">
-          <button
-            type="submit"
-            disabled={busy()}
-            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-          >
-            {busy() ? 'Requesting…' : 'Request certificate'}
-          </button>
-          <span class="ml-3 text-xs text-slate-500">Issuance can take up to a minute (DNS propagation).</span>
-        </div>
-      </form>
-    </section>
+      </div>
+      <div class="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={busy()}
+          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+        >
+          {busy() ? 'Requesting…' : 'Request certificate'}
+        </button>
+        <span class="text-xs text-slate-500">Issuance can take up to a minute (DNS propagation).</span>
+      </div>
+    </form>
   );
 }
 
-function UploadSection() {
+function UploadSection(props: { onDone: () => void }) {
   const [name, setName] = createSignal('');
   const [domains, setDomains] = createSignal('');
   const [mode, setMode] = createSignal<'pfx' | 'pem'>('pem');
@@ -321,16 +411,14 @@ function UploadSection() {
   const [certPem, setCertPem] = createSignal('');
   const [keyPem, setKeyPem] = createSignal('');
   const [busy, setBusy] = createSignal(false);
-  const [result, setResult] = createSignal<string | null>(null);
   const [error, setError] = createSignal<string[] | null>(null);
 
   async function submit(event: SubmitEvent) {
     event.preventDefault();
     setBusy(true);
-    setResult(null);
     setError(null);
     try {
-      const certificate = await api.post<CertificateDto>('/certificates/upload', {
+      await api.post<CertificateDto>('/certificates/upload', {
         name: name(),
         domains: domains()
           .split(',')
@@ -341,9 +429,9 @@ function UploadSection() {
         certificatePem: mode() === 'pem' ? certPem() || null : null,
         privateKeyPem: mode() === 'pem' ? keyPem() || null : null,
       });
-      setResult(`Certificate "${certificate.name}" uploaded.`);
       revalidate('certificates');
       revalidate('hosts');
+      props.onDone();
     } catch (e) {
       setError(toMessages(e));
     } finally {
@@ -352,13 +440,9 @@ function UploadSection() {
   }
 
   return (
-    <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 class="mb-4 text-lg font-medium text-slate-800">Upload a certificate</h2>
+    <form class="space-y-4" onSubmit={submit}>
       <ErrorBanner messages={error()} />
-      <Show when={result()}>
-        <div class="mb-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-green-700">{result()}</div>
-      </Show>
-      <form class="grid grid-cols-1 gap-4 sm:grid-cols-2" onSubmit={submit}>
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Name</span>
           <input class={inputClass} value={name()} onInput={(e) => setName(e.currentTarget.value)} required />
@@ -397,42 +481,21 @@ function UploadSection() {
             <input type="password" class={inputClass} value={pfxPassword()} onInput={(e) => setPfxPassword(e.currentTarget.value)} />
           </label>
         </Show>
-        <div class="sm:col-span-2">
-          <button
-            type="submit"
-            disabled={busy()}
-            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-          >
-            {busy() ? 'Uploading…' : 'Upload certificate'}
-          </button>
-        </div>
-      </form>
-    </section>
+      </div>
+      <div class="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={busy()}
+          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+        >
+          {busy() ? 'Uploading…' : 'Upload certificate'}
+        </button>
+      </div>
+    </form>
   );
 }
 
-function CredentialsSection(props: { credentials: DnsCredentialDto[] }) {
-  const [name, setName] = createSignal('');
-  const [token, setToken] = createSignal('');
-  const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal<string[] | null>(null);
-
-  async function add(event: SubmitEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post('/dns-credentials', { name: name(), apiToken: token() });
-      setName('');
-      setToken('');
-      revalidate('certificates');
-    } catch (e) {
-      setError(toMessages(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
+function CredentialsSection(props: { credentials: DnsCredentialDto[]; onAdd: () => void }) {
   async function remove(credential: DnsCredentialDto) {
     if (!confirm(`Delete DNS credential "${credential.name}"?`)) {
       return;
@@ -443,27 +506,15 @@ function CredentialsSection(props: { credentials: DnsCredentialDto[] }) {
 
   return (
     <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <h2 class="mb-4 text-lg font-medium text-slate-800">DNS credentials (DNS-01)</h2>
-      <ErrorBanner messages={error()} />
-      <form class="mb-4 grid grid-cols-1 gap-4 sm:grid-cols-3" onSubmit={add}>
-        <label class="block">
-          <span class="text-sm font-medium text-slate-700">Name</span>
-          <input class={inputClass} value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder="Cloudflare" required />
-        </label>
-        <label class="block sm:col-span-1">
-          <span class="text-sm font-medium text-slate-700">API token</span>
-          <input type="password" class={inputClass} value={token()} onInput={(e) => setToken(e.currentTarget.value)} placeholder="Cloudflare API token" required />
-        </label>
-        <div class="flex items-end">
-          <button
-            type="submit"
-            disabled={busy()}
-            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-          >
-            {busy() ? 'Adding…' : 'Add credential'}
-          </button>
-        </div>
-      </form>
+      <div class="mb-4 flex items-center justify-between">
+        <h2 class="text-lg font-medium text-slate-800">DNS credentials (DNS-01)</h2>
+        <button
+          class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
+          onClick={props.onAdd}
+        >
+          + Add credential
+        </button>
+      </div>
       <Show when={props.credentials.length > 0} fallback={<p class="text-sm text-slate-500">No DNS credentials yet.</p>}>
         <ul class="divide-y divide-slate-100 text-sm">
           <For each={props.credentials}>
@@ -481,5 +532,56 @@ function CredentialsSection(props: { credentials: DnsCredentialDto[] }) {
         </ul>
       </Show>
     </section>
+  );
+}
+
+function CredentialForm(props: { onDone: () => void }) {
+  const [name, setName] = createSignal('');
+  const [token, setToken] = createSignal('');
+  const [busy, setBusy] = createSignal(false);
+  const [error, setError] = createSignal<string[] | null>(null);
+
+  async function add(event: SubmitEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.post('/dns-credentials', { name: name(), apiToken: token() });
+      revalidate('certificates');
+      props.onDone();
+    } catch (e) {
+      setError(toMessages(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <form class="space-y-4" onSubmit={add}>
+      <ErrorBanner messages={error()} />
+      <label class="block">
+        <span class="text-sm font-medium text-slate-700">Name</span>
+        <input class={inputClass} value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder="Cloudflare" required />
+      </label>
+      <label class="block">
+        <span class="text-sm font-medium text-slate-700">API token</span>
+        <input type="password" class={inputClass} value={token()} onInput={(e) => setToken(e.currentTarget.value)} placeholder="Cloudflare API token" required />
+        <span class="mt-1 block text-xs text-slate-500">
+          Used to publish TXT records for DNS-01 challenges. Stored encrypted with the app's Data Protection keys.
+        </span>
+      </label>
+      <div class="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={busy()}
+          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+        >
+          {busy() ? 'Adding…' : 'Add credential'}
+        </button>
+        <button type="button" class="text-sm font-medium text-slate-600 hover:text-slate-900" onClick={props.onDone}>
+          Cancel
+        </button>
+      </div>
+    </form>
   );
 }

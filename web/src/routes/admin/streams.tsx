@@ -3,6 +3,7 @@ import { createSignal, For, Show } from 'solid-js';
 import { createMemo } from 'solid-js';
 import { query, revalidate } from '@solidjs/router';
 import { api, ApiError } from '../../lib/api';
+import Modal from '../../components/Modal';
 import type { StreamInput } from '../../lib/types';
 
 interface StreamDto {
@@ -76,17 +77,19 @@ export default function Streams() {
         </button>
       </div>
 
-      <Show when={showForm()}>
-        <div class="mb-6">
-          <StreamForm
-            initial={editing() ?? undefined}
-            onDone={() => {
-              setShowForm(false);
-              revalidate('streams');
-            }}
-          />
-        </div>
-      </Show>
+      <Modal
+        open={showForm()}
+        title={editing() ? `Edit stream "${editing()!.name}"` : 'New stream'}
+        onClose={() => setShowForm(false)}
+      >
+        <StreamForm
+          initial={editing() ?? undefined}
+          onDone={() => {
+            setShowForm(false);
+            revalidate('streams');
+          }}
+        />
+      </Modal>
 
       <Show when={data().streams.length > 0} fallback={<p class="text-sm text-slate-500">No streams yet. Streams forward raw TCP/UDP traffic.</p>}>
         <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
@@ -198,7 +201,7 @@ function StreamForm(props: { initial?: StreamDto; onDone: () => void }) {
   }
 
   return (
-    <form class="max-w-2xl space-y-4 rounded-lg border border-slate-200 bg-white p-6 shadow-sm" onSubmit={submit}>
+    <form class="space-y-4" onSubmit={submit}>
       <Show when={error()}>
         <div class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           <ul class="list-disc space-y-1 pl-5">
@@ -217,10 +220,12 @@ function StreamForm(props: { initial?: StreamDto; onDone: () => void }) {
             <option value="Tcp">TCP</option>
             <option value="Udp">UDP</option>
           </select>
+          <span class="mt-1 block text-xs text-slate-500">Raw byte forwarding — not HTTP proxying.</span>
         </label>
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Listen port</span>
           <input class={inputClass} type="number" min={1} max={65535} value={listenPort()} onInput={(e) => setListenPort(Number(e.currentTarget.value))} required />
+          <span class="mt-1 block text-xs text-slate-500">Must not collide with the proxy or admin ports.</span>
         </label>
         <label class="block">
           <span class="text-sm font-medium text-slate-700">Forward hostname / IP</span>
@@ -235,13 +240,18 @@ function StreamForm(props: { initial?: StreamDto; onDone: () => void }) {
           Enabled
         </label>
       </div>
-      <button
-        type="submit"
-        disabled={busy()}
-        class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-      >
-        {busy() ? 'Saving…' : props.initial ? 'Save changes' : 'Create stream'}
-      </button>
+      <div class="flex items-center gap-3 pt-2">
+        <button
+          type="submit"
+          disabled={busy()}
+          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+        >
+          {busy() ? 'Saving…' : props.initial ? 'Save changes' : 'Create stream'}
+        </button>
+        <button type="button" class="text-sm font-medium text-slate-600 hover:text-slate-900" onClick={props.onDone}>
+          Cancel
+        </button>
+      </div>
     </form>
   );
 }

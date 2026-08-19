@@ -40,7 +40,7 @@ export default function Dashboard() {
 
       <div class="mt-8">
         <div class="mb-3 flex items-center justify-between">
-          <h2 class="text-lg font-medium text-slate-800">Recent Proxy Hosts</h2>
+          <h2 class="text-lg font-medium text-slate-800">Recently Accessed</h2>
           <a href="/admin/hosts" class="text-sm font-medium text-blue-600 hover:text-blue-700">
             Manage hosts →
           </a>

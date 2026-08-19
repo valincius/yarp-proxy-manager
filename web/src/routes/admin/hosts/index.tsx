@@ -1,9 +1,9 @@
 import { Title } from '@solidjs/meta';
 import { query, revalidate } from '@solidjs/router';
 import { createMemo, For, Show } from 'solid-js';
-import { api } from '../../lib/api';
-import { StatusBadge } from '../../components/StatusBadge';
-import type { ProxyHost } from '../../lib/types';
+import { api } from '../../../lib/api';
+import { StatusBadge } from '../../../components/StatusBadge';
+import type { ProxyHost } from '../../../lib/types';
 
 const loadHosts = query(async (): Promise<ProxyHost[]> => api.get('/hosts'), 'hosts-list');
 
