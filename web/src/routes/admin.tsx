@@ -45,6 +45,9 @@ export default function AdminLayout(props: ParentProps) {
               <a href="/admin/access-lists" class={isActive('/admin/access-lists') ? activeNav : inactiveNav}>
                 Access Lists
               </a>
+              <a href="/admin/streams" class={isActive('/admin/streams') ? activeNav : inactiveNav}>
+                Streams
+              </a>
               <a href="/admin/certificates" class={isActive('/admin/certificates') ? activeNav : inactiveNav}>
                 SSL Certificates
               </a>

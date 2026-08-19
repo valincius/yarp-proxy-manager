@@ -12,11 +12,13 @@ using ProxyManager.Application.Certificates;
 using ProxyManager.Application.Proxy;
 using ProxyManager.Application.ProxyHosts;
 using ProxyManager.Application.Redirects;
+using ProxyManager.Application.Streams;
 using ProxyManager.Certificates;
 using ProxyManager.Certificates.Acme;
 using ProxyManager.Infrastructure.Dns;
 using ProxyManager.Infrastructure.Persistence;
 using ProxyManager.Proxy;
+using ProxyManager.Streams;
 using Serilog;
 using Yarp.ReverseProxy.Configuration;
 
@@ -106,7 +108,6 @@ public partial class Program
         // --- Application services ---
         builder.Services.AddSingleton(TimeProvider.System);
         builder.Services.AddSingleton<ProxyConfigReloader>();
-        builder.Services.AddSingleton<IConfigReloadNotifier, ConfigReloadNotifier>();
         builder.Services.AddScoped<IProxyHostRepository, ProxyHostRepository>();
         builder.Services.AddScoped<IProxyConfigStore, ProxyConfigStore>();
         builder.Services.AddScoped<ProxyHostValidator>();
@@ -143,6 +144,21 @@ public partial class Program
         builder.Services.AddHostedService<CertificateRenewalWorker>();
 
         // --- Kestrel HTTPS with SNI certificate selection ---
+        // --- Streams (TCP/UDP) ---
+        builder.Services.AddSingleton<StreamStatusRegistry>();
+        builder.Services.AddSingleton<StreamListenerFactory>();
+        builder.Services.AddSingleton<StreamHostService>();
+        builder.Services.AddSingleton<IReservedPortsProvider>(new ReservedPortsProvider(builder.Configuration));
+        builder.Services.AddScoped<IStreamRepository, StreamRepository>();
+        builder.Services.AddScoped<StreamValidator>();
+        builder.Services.AddScoped<StreamService>();
+        builder.Services.AddHostedService(sp => sp.GetRequiredService<StreamHostService>());
+
+        // The config reload notifier fans out to both the YARP reloader and the stream host.
+        builder.Services.AddSingleton<IConfigReloadNotifier>(sp => new CompositeReloadNotifier(
+            new ConfigReloadNotifier(sp.GetRequiredService<ProxyConfigReloader>()),
+            new StreamChangeNotifier(sp.GetRequiredService<StreamHostService>())));
+
         // --- YARP (empty initial config; ProxyConfigReloader swaps in the real routes) ---
         builder.Services.AddReverseProxy().LoadFromMemory([], []);
 
@@ -263,6 +279,29 @@ public partial class Program
 
     private static bool IsAdminPort(HttpContext context, int adminPort)
         => context.Connection.LocalPort == adminPort || context.Connection.LocalPort == 0;
+
+    /// <summary>Fans out config-reload notifications to every subsystem that maintains a runtime projection.</summary>
+    private sealed class CompositeReloadNotifier(params IConfigReloadNotifier[] notifiers) : IConfigReloadNotifier
+    {
+        public void Notify()
+        {
+            foreach (var notifier in notifiers)
+            {
+                notifier.Notify();
+            }
+        }
+    }
+
+    /// <summary>The proxy's own listening ports; streams must not collide with them.</summary>
+    private sealed class ReservedPortsProvider(IConfiguration configuration) : IReservedPortsProvider
+    {
+        public IReadOnlyList<int> Ports { get; } =
+        [
+            GetEndpointPort(configuration, "Kestrel:Endpoints:ProxyHttp:Url", 80),
+            GetEndpointPort(configuration, "Kestrel:Endpoints:Https:Url", 443),
+            GetEndpointPort(configuration, "Kestrel:Endpoints:Admin:Url", 81),
+        ];
+    }
 
     /// <summary>Runs startup work: applies migrations, seeds the admin user, loads proxy config + certificates.</summary>
     public static async Task InitializeAsync(WebApplication app)

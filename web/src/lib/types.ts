@@ -175,3 +175,12 @@ export interface UserDto {
   roles: string[];
   lockoutEnd: string | null;
 }
+
+export interface StreamInput {
+  name: string;
+  enabled: boolean;
+  protocol: 'Tcp' | 'Udp';
+  listenPort: number;
+  forwardHost: string;
+  forwardPort: number;
+}

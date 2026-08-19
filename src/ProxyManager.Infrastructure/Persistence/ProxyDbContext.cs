@@ -33,6 +33,8 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
 
     public DbSet<AuditLog> AuditLogs => Set<AuditLog>();
 
+    public DbSet<Domain.Stream> Streams => Set<Domain.Stream>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -147,6 +149,15 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
             entity.Property(x => x.Action).HasMaxLength(50).IsRequired();
             entity.Property(x => x.Details).HasMaxLength(8000);
             entity.HasIndex(x => x.Timestamp);
+        });
+
+        builder.Entity<Domain.Stream>(entity =>
+        {
+            entity.ToTable("Streams");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.ForwardHost).HasMaxLength(253).IsRequired();
+            entity.HasIndex(x => x.ListenPort).IsUnique();
         });
     }
 }
