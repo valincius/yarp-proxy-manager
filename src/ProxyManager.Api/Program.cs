@@ -11,6 +11,7 @@ using OpenTelemetry.Metrics;
 using ProxyManager.Api.Middleware;
 using ProxyManager.Api.Routing;
 using ProxyManager.Application;
+using ProxyManager.Application.ApiKeys;
 using ProxyManager.Application.Certificates;
 using ProxyManager.Application.Proxy;
 using ProxyManager.Application.ProxyHosts;
@@ -128,6 +129,11 @@ public partial class Program
         builder.Services.AddScoped<AccessListValidator>();
         builder.Services.AddScoped<RedirectHostService>();
         builder.Services.AddScoped<AccessListService>();
+
+        // --- REST API keys ---
+        builder.Services.AddScoped<IApiKeyRepository, ApiKeyRepository>();
+        builder.Services.AddScoped<CreateApiKeyValidator>();
+        builder.Services.AddScoped<ApiKeyService>();
 
         // --- Certificates subsystem ---
         builder.Services.AddHttpClient("CloudflareDns", client => client.Timeout = TimeSpan.FromSeconds(30));
@@ -270,6 +276,7 @@ public partial class Program
         });
         app.UseWhen(ctx => IsAdminPort(ctx, adminPort), admin =>
         {
+            admin.UseMiddleware<ApiKeyAuthenticationMiddleware>();
             admin.UseAuthentication();
             admin.UseAuthorization();
             admin.UseMiddleware<AntiforgeryValidationMiddleware>();

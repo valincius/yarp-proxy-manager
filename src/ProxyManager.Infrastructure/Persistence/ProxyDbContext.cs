@@ -37,6 +37,8 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
 
     public DbSet<Domain.Stream> Streams => Set<Domain.Stream>();
 
+    public DbSet<ApiKey> ApiKeys => Set<ApiKey>();
+
     protected override void OnModelCreating(ModelBuilder builder)
     {
         base.OnModelCreating(builder);
@@ -170,6 +172,16 @@ public sealed class ProxyDbContext : IdentityDbContext<ApplicationUser, Identity
             entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
             entity.Property(x => x.ForwardHost).HasMaxLength(253).IsRequired();
             entity.HasIndex(x => x.ListenPort).IsUnique();
+        });
+
+        builder.Entity<ApiKey>(entity =>
+        {
+            entity.ToTable("ApiKeys");
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Name).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.KeyHash).HasMaxLength(200).IsRequired();
+            entity.Property(x => x.Prefix).HasMaxLength(20).IsRequired();
+            entity.HasIndex(x => x.Prefix).IsUnique();
         });
     }
 }

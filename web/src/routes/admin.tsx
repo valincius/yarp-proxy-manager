@@ -87,6 +87,9 @@ export default function AdminLayout(props: ParentProps) {
               <a href="/admin/backup" class={isActive('/admin/backup') ? activeNav : inactiveNav}>
                 Backup & Restore
               </a>
+              <a href="/admin/api-keys" class={isActive('/admin/api-keys') ? activeNav : inactiveNav}>
+                API Keys
+              </a>
               <a href="/admin/users" class={isActive('/admin/users') ? activeNav : inactiveNav}>
                 Users
               </a>

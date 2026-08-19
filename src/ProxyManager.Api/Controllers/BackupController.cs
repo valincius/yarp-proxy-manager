@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using ProxyManager.Application;
@@ -7,8 +8,10 @@ using ProxyManager.Infrastructure.Persistence;
 namespace ProxyManager.Api.Controllers;
 
 /// <summary>JSON export/restore of the configuration (hosts, redirects, streams, access lists).
-/// Certificate private keys are not exported — certificate PFX files must be backed up from disk.</summary>
+/// Certificate private keys are not exported — certificate PFX files must be backed up from disk.
+/// Admin-only: API keys cannot export or restore configuration.</summary>
 [Route("api/v1/backup")]
+[Authorize(Roles = "Admin")]
 public sealed class BackupController(
     ProxyDbContext db,
     IConfigReloadNotifier notifier) : ApiControllerBase

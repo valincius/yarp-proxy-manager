@@ -22,6 +22,14 @@ public sealed class AntiforgeryValidationMiddleware(
 
         if (isUnsafe && context.Request.Path.StartsWithSegments("/api/v1"))
         {
+            // API-key requests are authenticated by the key itself, so the
+            // cookie-bound antiforgery token does not apply to them.
+            if (context.Items.ContainsKey(ApiKeyAuthenticationMiddleware.ApiKeyAuthenticatedKey))
+            {
+                await next(context);
+                return;
+            }
+
             try
             {
                 await antiforgery.ValidateRequestAsync(context);
