@@ -1,5 +1,10 @@
 # Implementation Plan — Stage 1 & Stage 2
 
+> **Status: all items implemented and verified (2026-08-19).** See the commit log
+> and README for where each piece landed. Verification: `dotnet test` 85/85,
+> web typecheck + build + tests 6/6, app boot + API smoke test, in-Docker E2E
+> for autodiscovery, live benchmark run.
+
 Work is tracked against the current goal. Each item lists the affected files and the
 approach. This document is the plan; implementation follows it item by item with
 verification (web `tsc`/`build`, `dotnet build`, `dotnet test`) at the end of each stage.
@@ -26,10 +31,10 @@ verification (web `tsc`/`build`, `dotnet build`, `dotnet test`) at the end of ea
 
 | # | Item | Approach |
 |---|------|----------|
-| S2.1 | 404 page management | Settings option (embedded default / empty / uploaded HTML with `{{placeholder}}` string replacement). Store the template in the DB or data dir; proxy port serves it for unmatched hosts on the proxy pipeline. UI on the settings page. |
-| S2.2 | Helper text | Add `hint` text to form fields that lack it (redirects, streams, access lists, users, certs, settings). |
-| S2.3 | Docker container-tag integration | A watcher that connects to the Docker socket/API, reads container labels (e.g. `proxy-manager.enable=true`, `host=…`, `port=…`, `scheme=…`), creates/disposes proxy hosts automatically (traefik-style). Config toggle + status UI. |
-| S2.4 | Benchmarking vs nginx/npm | Add `benchmarks/` harness (docker-compose with nginx + YARP + npm, bombardier/wrk scripts) and a results/methodology doc modeled on the referenced YARP-vs-nginx article. |
+| S2.1 | 404 page management | Settings option (embedded default / empty / uploaded HTML with `{{placeholder}}` string replacement). Store the template in the DB or data dir; proxy port serves it for unmatched hosts on the proxy pipeline. UI on the settings page. **Done** — `Setting` key/value store, `NotFoundPageMiddleware` on the proxy port, `/settings/not-found` endpoints, Settings UI with live preview. |
+| S2.2 | Helper text | Add `hint` text to form fields that lack it (redirects, streams, access lists, users, certs, settings). **Done** — hints added across hosts, redirects, streams, access lists, certificates, API keys, settings, users. |
+| S2.3 | Docker container-tag integration | A watcher that connects to the Docker socket/API, reads container labels (e.g. `proxy-manager.enable=true`, `host=…`, `port=…`, `scheme=…`), creates/disposes proxy hosts automatically (traefik-style). Config toggle + status UI. **Done** — `DockerHostSyncService` + 15s `DockerSyncWorker`, managed-host lifecycle (`ManagedBy`/`ManagedSource`), `/settings/docker` endpoints, Settings UI with status + "Sync now", verified end-to-end in Docker (discovery → live proxy → disposal). |
+| S2.4 | Benchmarking vs nginx/npm | Add `benchmarks/` harness (docker-compose with nginx + YARP + npm, bombardier/wrk scripts) and a results/methodology doc modeled on the referenced YARP-vs-nginx article. **Done** — k6-based docker harness, `run.ps1` runner, results + methodology in `benchmarks/README.md`; sample run recorded. |
 
 ## Verification
 

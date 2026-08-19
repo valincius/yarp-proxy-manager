@@ -105,7 +105,7 @@ docs/                             Implementation plan, REST API reference
 - **Phase 4 — Streams (done):** TCP/UDP forwarding subsystem with per-stream listeners, runtime status (sessions/bytes), port-conflict validation against the proxy ports, and a streams UI.
 - **Phase 5 — Ops (done):** load balancing (multiple destinations, round-robin/least-requests/random policies, active health checks), Prometheus metrics on the admin port, optional OIDC SSO login, and JSON backup/restore.
 - **Stage 1 — UX + public API (done):** modal-based editing across all pages, inline certificate/access-list creation from the host form, error boundaries + toasts, global search (Ctrl+K), a Settings page, a read-view for certificates, a public REST API with API-key authentication ([docs/API.md](docs/API.md)), and API-key management UI.
-- **Stage 2 — Deep features (in progress):** custom 404 page management, helper text, Docker container-label autodiscovery (traefik-style), and benchmarking vs nginx/NPM. See [docs/PLAN.md](docs/PLAN.md).
+- **Stage 2 — Deep features (done):** custom 404 page management (built-in / empty / uploaded HTML with `{{host}}`-style templating), helper text across forms, Docker container-label autodiscovery (traefik-style, verified end-to-end in Docker), and a k6-based benchmark harness comparing YARP vs tuned nginx vs optional NPM ([benchmarks/](benchmarks/README.md)). See [docs/PLAN.md](docs/PLAN.md).
 
 ## REST API
 
