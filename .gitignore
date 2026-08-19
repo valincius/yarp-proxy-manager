@@ -20,6 +20,10 @@ data/
 benchmarks/k6/out/
 benchmarks/results.csv
 
+# --- Dev logs ---
+app-run.log
+*.log
+
 # --- Environment ---
 .env
 .env*.local
