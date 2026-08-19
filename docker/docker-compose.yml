@@ -16,3 +16,14 @@ services:
       - Admin__Password=changeme
     volumes:
       - ./data:/data # SQLite, certificates, Data Protection keys, logs
+      # Docker autodiscovery (Stage 2): mount the engine socket so the manager
+      # can watch container labels. Linux: /var/run/docker.sock; on Windows
+      # Docker Desktop the named pipe is the default and needs no mount.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # The manager discovers containers by IP on its own network; put it and the
+    # published containers on a shared network so they can reach each other:
+    # networks:
+    #   - proxy
+# networks:
+#   proxy:
+#     external: true

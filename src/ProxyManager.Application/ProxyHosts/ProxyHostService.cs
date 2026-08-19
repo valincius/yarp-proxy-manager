@@ -46,6 +46,41 @@ public sealed class ProxyHostService
         return host;
     }
 
+    /// <summary>Creates a host owned by an automated source (Docker label autodiscovery).</summary>
+    public async Task<ProxyHost> CreateManagedAsync(
+        ProxyHostInput input,
+        string managedBy,
+        string managedSource,
+        CancellationToken cancellationToken = default)
+    {
+        await ValidateAndCheckConflictsAsync(input, excludingHostId: null, cancellationToken);
+
+        var now = _time.GetUtcNow();
+        var host = new ProxyHost
+        {
+            Id = Guid.NewGuid(),
+            CreatedAt = now,
+            UpdatedAt = now,
+            ManagedBy = managedBy,
+            ManagedSource = managedSource,
+        };
+        ApplyInput(host, input);
+
+        await _repository.AddAsync(host, cancellationToken);
+        _notifier.Notify();
+        return host;
+    }
+
+    /// <summary>Updates a managed host; the managed-by/source markers are preserved by ApplyInput.</summary>
+    public async Task<ProxyHost> UpdateManagedAsync(Guid id, ProxyHostInput input, CancellationToken cancellationToken = default)
+        => await UpdateAsync(id, input, cancellationToken);
+
+    public Task<ProxyHost?> FindByManagedSourceAsync(string source, CancellationToken cancellationToken = default)
+        => _repository.FindByManagedSourceAsync(source, cancellationToken);
+
+    public Task<IReadOnlyList<ProxyHost>> ListManagedAsync(string managedBy, CancellationToken cancellationToken = default)
+        => _repository.ListManagedAsync(managedBy, cancellationToken);
+
     public async Task<ProxyHost> UpdateAsync(Guid id, ProxyHostInput input, CancellationToken cancellationToken = default)
     {
         var host = await _repository.GetAsync(id, cancellationToken)

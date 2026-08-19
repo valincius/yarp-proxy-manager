@@ -61,6 +61,12 @@ public sealed class ProxyHost
 
     public int HealthCheckIntervalSeconds { get; set; } = 10;
 
+    /// <summary>Who owns this host: null = manual, "docker" = created by container-label autodiscovery.</summary>
+    public string? ManagedBy { get; set; }
+
+    /// <summary>Source identifier for managed hosts (e.g. "container:&lt;id&gt;"), used to dispose them.</summary>
+    public string? ManagedSource { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public DateTimeOffset UpdatedAt { get; set; }

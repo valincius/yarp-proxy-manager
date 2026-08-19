@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using ProxyManager.Application.Settings;
+using ProxyManager.Infrastructure.Docker;
 
 namespace ProxyManager.Api.Controllers;
 
@@ -16,4 +17,23 @@ public sealed class SettingsController(SettingsService settings) : ApiController
     [HttpPut("not-found")]
     public async Task<IActionResult> SetNotFound(NotFoundSettingsInput input, CancellationToken cancellationToken)
         => Ok(await settings.SetNotFoundSettingsAsync(input, cancellationToken));
+
+    [HttpGet("docker")]
+    public async Task<IActionResult> GetDocker(CancellationToken cancellationToken)
+        => Ok(await settings.GetDockerSettingsAsync(cancellationToken));
+
+    [HttpPut("docker")]
+    public async Task<IActionResult> SetDocker(DockerSettingsInput input, CancellationToken cancellationToken)
+    {
+        await settings.SetDockerSettingsAsync(input, cancellationToken);
+        return Ok(await settings.GetDockerSettingsAsync(cancellationToken));
+    }
+
+    [HttpPost("docker/sync")]
+    public async Task<IActionResult> SyncDocker(CancellationToken cancellationToken)
+    {
+        var sync = HttpContext.RequestServices.GetRequiredService<DockerHostSyncService>();
+        await sync.SyncAsync(cancellationToken);
+        return Ok(await settings.GetDockerSettingsAsync(cancellationToken));
+    }
 }

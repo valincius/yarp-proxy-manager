@@ -22,6 +22,15 @@ public sealed class ProxyHostRepository(ProxyDbContext db) : IProxyHostRepositor
         await WithChildren(db.ProxyHosts.AsNoTracking())
             .FirstOrDefaultAsync(h => h.Id == id, cancellationToken);
 
+    public async Task<ProxyHost?> FindByManagedSourceAsync(string source, CancellationToken cancellationToken = default) =>
+        await WithChildren(db.ProxyHosts.AsNoTracking())
+            .FirstOrDefaultAsync(h => h.ManagedSource == source, cancellationToken);
+
+    public async Task<IReadOnlyList<ProxyHost>> ListManagedAsync(string managedBy, CancellationToken cancellationToken = default) =>
+        await WithChildren(db.ProxyHosts.AsNoTracking())
+            .Where(h => h.ManagedBy == managedBy)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(ProxyHost host, CancellationToken cancellationToken = default)
     {
         db.ProxyHosts.Add(host);

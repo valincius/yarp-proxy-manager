@@ -67,4 +67,61 @@ public sealed class SettingsService(ISettingRepository repository)
 
         return await GetNotFoundSettingsAsync(cancellationToken);
     }
+
+    private const string DockerEnabledKey = "Docker:Enabled";
+    private const string DockerHostKey = "Docker:Host";
+    private const string DockerNetworkKey = "Docker:Network";
+    private const string DockerLastSyncKey = "Docker:LastSyncAt";
+    private const string DockerLastErrorKey = "Docker:LastError";
+    private const string DockerManagedHostsKey = "Docker:ManagedHosts";
+    private const string DockerDiscoveredKey = "Docker:DiscoveredContainers";
+
+    public async Task<DockerSettingsDto> GetDockerSettingsAsync(CancellationToken cancellationToken = default)
+    {
+        var enabled = await GetAsync(DockerEnabledKey, cancellationToken) == "true";
+        var host = await GetAsync(DockerHostKey, cancellationToken);
+        var network = await GetAsync(DockerNetworkKey, cancellationToken);
+        var lastSyncAt = ParseDate(await GetAsync(DockerLastSyncKey, cancellationToken));
+        var lastError = await GetAsync(DockerLastErrorKey, cancellationToken);
+        var managedHosts = ParseInt(await GetAsync(DockerManagedHostsKey, cancellationToken));
+        var discovered = ParseInt(await GetAsync(DockerDiscoveredKey, cancellationToken));
+
+        return new DockerSettingsDto(enabled, host, network, lastSyncAt, lastError, managedHosts, discovered);
+    }
+
+    public async Task SetDockerSettingsAsync(
+        DockerSettingsInput input,
+        CancellationToken cancellationToken = default)
+    {
+        await SetAsync(DockerEnabledKey, input.Enabled ? "true" : "false", cancellationToken);
+        if (!string.IsNullOrWhiteSpace(input.Host))
+        {
+            await SetAsync(DockerHostKey, input.Host.Trim(), cancellationToken);
+        }
+
+        if (!string.IsNullOrWhiteSpace(input.Network))
+        {
+            await SetAsync(DockerNetworkKey, input.Network.Trim(), cancellationToken);
+        }
+    }
+
+    /// <summary>Records the outcome of the most recent Docker discovery pass.</summary>
+    public async Task SetDockerStatusAsync(
+        DateTimeOffset? lastSyncAt,
+        string? lastError,
+        int managedHosts,
+        int discoveredContainers,
+        CancellationToken cancellationToken = default)
+    {
+        await SetAsync(DockerLastSyncKey, lastSyncAt?.ToString("O") ?? string.Empty, cancellationToken);
+        await SetAsync(DockerLastErrorKey, lastError ?? string.Empty, cancellationToken);
+        await SetAsync(DockerManagedHostsKey, managedHosts.ToString(), cancellationToken);
+        await SetAsync(DockerDiscoveredKey, discoveredContainers.ToString(), cancellationToken);
+    }
+
+    private static DateTimeOffset? ParseDate(string? value) =>
+        DateTimeOffset.TryParse(value, out var parsed) ? parsed : null;
+
+    private static int ParseInt(string? value) =>
+        int.TryParse(value, out var parsed) ? parsed : 0;
 }

@@ -211,3 +211,13 @@ export interface NotFoundSettings {
   mode: 'Default' | 'Empty' | 'Custom';
   template: string;
 }
+
+export interface DockerSettings {
+  enabled: boolean;
+  host: string | null;
+  network: string | null;
+  lastSyncAt: string | null;
+  lastError: string | null;
+  managedHosts: number;
+  discoveredContainers: number;
+}

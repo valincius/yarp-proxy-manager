@@ -10,6 +10,7 @@ using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Metrics;
 using ProxyManager.Api.Middleware;
 using ProxyManager.Api.Routing;
+using ProxyManager.Api.Workers;
 using ProxyManager.Application;
 using ProxyManager.Application.ApiKeys;
 using ProxyManager.Application.Certificates;
@@ -21,6 +22,7 @@ using ProxyManager.Application.Streams;
 using ProxyManager.Certificates;
 using ProxyManager.Certificates.Acme;
 using ProxyManager.Infrastructure.Dns;
+using ProxyManager.Infrastructure.Docker;
 using ProxyManager.Infrastructure.Persistence;
 using ProxyManager.Proxy;
 using ProxyManager.Streams;
@@ -139,6 +141,11 @@ public partial class Program
         // --- Settings (404 page, misc) ---
         builder.Services.AddScoped<ISettingRepository, SettingRepository>();
         builder.Services.AddScoped<SettingsService>();
+
+        // --- Docker container-label autodiscovery ---
+        builder.Services.AddSingleton(new DockerClientFactory(builder.Configuration["Docker:Host"]));
+        builder.Services.AddScoped<DockerHostSyncService>();
+        builder.Services.AddHostedService<DockerSyncWorker>();
 
         // --- Certificates subsystem ---
         builder.Services.AddHttpClient("CloudflareDns", client => client.Timeout = TimeSpan.FromSeconds(30));

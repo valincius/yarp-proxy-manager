@@ -4,7 +4,7 @@ import { createMemo } from 'solid-js';
 import { query, revalidate } from '@solidjs/router';
 import { api, ApiError } from '../../lib/api';
 import { useToast } from '../../lib/toast';
-import type { AcmeSettings, NotFoundSettings } from '../../lib/types';
+import type { AcmeSettings, DockerSettings, NotFoundSettings } from '../../lib/types';
 
 const loadAcmeSettings = query(async (): Promise<AcmeSettings> => api.get('/acme-settings'), 'acme-settings');
 
@@ -37,6 +37,7 @@ export default function Settings() {
       <h1 class="text-2xl font-semibold text-slate-800">Settings</h1>
       <AcmeSection />
       <NotFoundSection />
+      <DockerSection />
     </section>
   );
 }
@@ -220,4 +221,150 @@ function previewHtml(template: string): string {
     .replaceAll('{{path}}', '/missing')
     .replaceAll('{{method}}', 'GET')
     .replaceAll('{{now}}', new Date().toLocaleString());
+}
+
+function DockerSection() {
+  const loadDocker = query(async (): Promise<DockerSettings> => api.get('/settings/docker'), 'docker-settings');
+  const docker = createMemo(() => loadDocker());
+  const toast = useToast();
+  const [enabled, setEnabled] = createSignal(false);
+  const [host, setHost] = createSignal('');
+  const [network, setNetwork] = createSignal('');
+  const [busy, setBusy] = createSignal(false);
+  const [syncing, setSyncing] = createSignal(false);
+  const [error, setError] = createSignal<string[] | null>(null);
+
+  createEffect(docker, (d) => {
+    setEnabled(d.enabled);
+    setHost(d.host ?? '');
+    setNetwork(d.network ?? '');
+  });
+
+  async function save(event: SubmitEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      await api.put('/settings/docker', { enabled: enabled(), host: host() || null, network: network() || null });
+      revalidate('docker-settings');
+      toast.push('Docker integration settings saved.', 'success');
+    } catch (e) {
+      setError(toMessages(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function syncNow() {
+    setSyncing(true);
+    setError(null);
+    try {
+      const result = await api.post<DockerSettings>('/settings/docker/sync');
+      revalidate('docker-settings');
+      toast.push(result.lastError ? `Sync finished with errors: ${result.lastError}` : 'Sync complete.', result.lastError ? 'error' : 'success');
+    } catch (e) {
+      setError(toMessages(e));
+    } finally {
+      setSyncing(false);
+    }
+  }
+
+  const status = () => docker();
+
+  return (
+    <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="mb-4 flex items-center justify-between">
+        <div>
+          <h2 class="text-lg font-medium text-slate-800">Docker integration</h2>
+          <p class="mt-1 text-sm text-slate-500">
+            Traefik-style autodiscovery: containers labelled{' '}
+            <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs">proxy-manager.enable=true</code> are published
+            as proxy hosts automatically and disposed when the container disappears.
+          </p>
+        </div>
+        <button
+          class="shrink-0 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+          onClick={() => void syncNow()}
+          disabled={syncing()}
+        >
+          {syncing() ? 'Syncing…' : 'Sync now'}
+        </button>
+      </div>
+
+      <ErrorBanner messages={error()} />
+
+      <div class="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        <StatusTile label="Enabled" value={status().enabled ? 'Yes' : 'No'} />
+        <StatusTile label="Discovered containers" value={String(status().discoveredContainers)} />
+        <StatusTile label="Managed hosts" value={String(status().managedHosts)} />
+        <StatusTile label="Last sync" value={formatLastSync(status().lastSyncAt)} />
+      </div>
+      <Show when={status().lastError}>
+        <div class="mb-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+          <p class="font-medium">Last sync error</p>
+          <p class="mt-1 break-words text-xs">{status().lastError}</p>
+        </div>
+      </Show>
+
+      <form class="grid grid-cols-1 gap-4 sm:grid-cols-3" onSubmit={save}>
+        <label class="flex items-end gap-2 pb-2 text-sm text-slate-700 sm:col-span-3">
+          <input
+            type="checkbox"
+            class="h-4 w-4 rounded border-slate-300 text-blue-600"
+            checked={enabled()}
+            onChange={(e) => setEnabled(e.currentTarget.checked)}
+          />
+          Enable Docker autodiscovery
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Docker engine endpoint (optional)</span>
+          <input class={inputClass} value={host()} onInput={(e) => setHost(e.currentTarget.value)} placeholder="Leave empty for default (npipe/unix socket)" />
+          <span class="mt-1 block text-xs text-slate-500">e.g. <code>tcp://host:2375</code> for a remote engine.</span>
+        </label>
+        <label class="block">
+          <span class="text-sm font-medium text-slate-700">Network (optional)</span>
+          <input class={inputClass} value={network()} onInput={(e) => setNetwork(e.currentTarget.value)} placeholder="e.g. proxy" />
+          <span class="mt-1 block text-xs text-slate-500">Which network's IP to use for each container; defaults to the first with an address.</span>
+        </label>
+        <div class="flex items-end">
+          <button
+            type="submit"
+            disabled={busy()}
+            class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
+          >
+            {busy() ? 'Saving…' : 'Save Docker settings'}
+          </button>
+        </div>
+      </form>
+
+      <div class="mt-4 rounded-md border border-slate-200 bg-slate-50 p-3">
+        <p class="text-xs font-medium uppercase tracking-wide text-slate-500">Supported labels</p>
+        <ul class="mt-2 grid grid-cols-1 gap-1 text-xs text-slate-600 sm:grid-cols-2">
+          <li><code class="rounded bg-white px-1.5 py-0.5">proxy-manager.enable=true</code> — opt in</li>
+          <li><code class="rounded bg-white px-1.5 py-0.5">proxy-manager.host=app.example.com</code> — domain(s), comma-separated</li>
+          <li><code class="rounded bg-white px-1.5 py-0.5">proxy-manager.port=8080</code> — container port</li>
+          <li><code class="rounded bg-white px-1.5 py-0.5">proxy-manager.scheme=http|https</code> — upstream scheme</li>
+          <li><code class="rounded bg-white px-1.5 py-0.5">proxy-manager.name=My App</code> — display name</li>
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function StatusTile(props: { label: string; value: string }) {
+  return (
+    <div class="rounded-md border border-slate-200 bg-slate-50 px-3 py-2">
+      <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">{props.label}</div>
+      <div class="mt-0.5 truncate text-sm font-semibold text-slate-800">{props.value}</div>
+    </div>
+  );
+}
+
+function formatDateTime(value: string): string {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function formatLastSync(value: string | null): string {
+  return value ? formatDateTime(value) : 'never';
 }
