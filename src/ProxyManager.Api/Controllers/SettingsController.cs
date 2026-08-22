@@ -36,4 +36,15 @@ public sealed class SettingsController(SettingsService settings) : ApiController
         await sync.SyncAsync(cancellationToken);
         return Ok(await settings.GetDockerSettingsAsync(cancellationToken));
     }
+
+    [HttpGet("diagnostics")]
+    public async Task<IActionResult> GetDiagnostics(CancellationToken cancellationToken)
+        => Ok(await settings.GetDiagnosticsSettingsAsync(cancellationToken));
+
+    [HttpPut("diagnostics")]
+    public async Task<IActionResult> SetDiagnostics(DiagnosticsSettingsInput input, CancellationToken cancellationToken)
+    {
+        await settings.SetDiagnosticsSettingsAsync(input, cancellationToken);
+        return Ok(await settings.GetDiagnosticsSettingsAsync(cancellationToken));
+    }
 }

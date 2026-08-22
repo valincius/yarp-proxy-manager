@@ -221,3 +221,70 @@ export interface DockerSettings {
   managedHosts: number;
   discoveredContainers: number;
 }
+
+export interface DiagnosticsOverview {
+  startedAt: string;
+  totalRequests: number;
+  totalFailed: number;
+  trackedHosts: number;
+  bufferedSamples: number;
+  captureEnabled: boolean;
+  captureSize: number;
+  traceEndpoint: string | null;
+  routes: number;
+  clusters: number;
+  proxyHosts: number;
+  streams: {
+    streamId: string;
+    listening: boolean;
+    activeSessions: number;
+    bytesIn: number;
+    bytesOut: number;
+    error: string | null;
+    updatedAt: string;
+  }[];
+  certificates: { total: number; failed: number; expiringSoon: number };
+}
+
+export interface TrafficRow {
+  host: string;
+  hostId: string | null;
+  hostName: string | null;
+  requests: number;
+  failed: number;
+  active: number;
+  bytesIn: number;
+  bytesOut: number;
+  averageMs: number;
+  p50Ms: number;
+  p95Ms: number;
+  p99Ms: number;
+  class2xx: number;
+  class3xx: number;
+  class4xx: number;
+  class5xx: number;
+  classOther: number;
+  lastError: string | null;
+  firstSeen: string;
+  lastSeen: string;
+}
+
+export interface RecentRequest {
+  timestamp: string;
+  host: string;
+  method: string;
+  path: string;
+  statusCode: number;
+  durationMs: number;
+  bytesIn: number;
+  bytesOut: number;
+  clientIp: string | null;
+  error: string | null;
+  requestBody: string | null;
+  responseBody: string | null;
+}
+
+export interface DiagnosticsSettings {
+  captureEnabled: boolean;
+  captureSize: number;
+}

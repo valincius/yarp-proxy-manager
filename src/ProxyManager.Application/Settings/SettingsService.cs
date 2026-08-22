@@ -119,6 +119,22 @@ public sealed class SettingsService(ISettingRepository repository)
         await SetAsync(DockerDiscoveredKey, discoveredContainers.ToString(), cancellationToken);
     }
 
+    public async Task<DiagnosticsSettingsDto> GetDiagnosticsSettingsAsync(CancellationToken cancellationToken = default)
+        => new(
+            await GetAsync(DiagnosticsSettings.CaptureEnabledKey, cancellationToken) == "true",
+            DiagnosticsSettings.ParseSize(await GetAsync(DiagnosticsSettings.CaptureSizeKey, cancellationToken)));
+
+    public async Task SetDiagnosticsSettingsAsync(
+        DiagnosticsSettingsInput input,
+        CancellationToken cancellationToken = default)
+    {
+        await SetAsync(DiagnosticsSettings.CaptureEnabledKey, input.CaptureEnabled ? "true" : "false", cancellationToken);
+        await SetAsync(
+            DiagnosticsSettings.CaptureSizeKey,
+            Math.Clamp(input.CaptureSize, 1, DiagnosticsSettings.MaxCaptureSize).ToString(),
+            cancellationToken);
+    }
+
     private static DateTimeOffset? ParseDate(string? value) =>
         DateTimeOffset.TryParse(value, out var parsed) ? parsed : null;
 

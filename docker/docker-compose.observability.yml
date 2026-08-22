@@ -1,0 +1,52 @@
+# Optional observability stack: Prometheus (metrics), Tempo (distributed traces via
+# OTLP), Grafana (dashboards). Start with:
+#
+#   cd docker
+#   docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+#
+# The proxy-manager service gets OTEL_EXPORTER_OTLP_ENDPOINT pointing at Tempo, so
+# distributed traces are exported automatically once this file is used. Metrics are
+# scraped from the admin port (/metrics). Grafana runs with anonymous admin access
+# for local use — lock it down (GF_AUTH_ANONYMOUS_*) before exposing it.
+services:
+  proxy-manager:
+    environment:
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://tempo:4318
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: yarp-observability-prometheus
+    restart: unless-stopped
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+
+  tempo:
+    image: grafana/tempo:2.4.0
+    container_name: yarp-observability-tempo
+    restart: unless-stopped
+    command: ["-config.file=/etc/tempo.yaml"]
+    volumes:
+      - ./observability/tempo.yaml:/etc/tempo.yaml:ro
+      - tempo-data:/var/tempo
+    ports:
+      - "3200:3200" # Tempo query API (Grafana datasource)
+      - "4318:4318" # OTLP HTTP traces
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: yarp-observability-grafana
+    restart: unless-stopped
+    environment:
+      - GF_AUTH_ANONYMOUS_ENABLED=true
+      - GF_AUTH_ANONYMOUS_ORG_ROLE=Admin
+    volumes:
+      - ./observability/grafana/datasources.yml:/etc/grafana/provisioning/datasources/datasources.yml:ro
+    ports:
+      - "3000:3000"
+
+volumes:
+  prometheus-data:
+  tempo-data:

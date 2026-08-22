@@ -110,3 +110,12 @@ docs/                             Implementation plan, REST API reference
 ## REST API
 
 The admin UI runs on the same JSON API exposed under `/api/v1` on the admin port. Programmatic access uses API keys (`X-Api-Key` header) that can manage every proxy entity — hosts, redirects, access lists, streams, certificates — but not users, backups or API keys themselves. Full reference with examples: **[docs/API.md](docs/API.md)**.
+
+## Observability
+
+Live traffic statistics are available in-app (**Admin → Diagnostics**): per-host request counts, status-code and latency breakdowns, a recent-requests view with optional request/response body capture, stream/certificate health, and system counters. `GET /metrics` on the admin port exposes the same per-host data (`traffic_*`) plus ASP.NET/Kestrel/HttpClient metrics for Prometheus. Distributed traces (OTLP) are opt-in. See **[docs/OBSERVABILITY.md](docs/OBSERVABILITY.md)**; a Prometheus + Tempo + Grafana stack is provided as a compose profile:
+
+```bash
+cd docker && docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
+```
+

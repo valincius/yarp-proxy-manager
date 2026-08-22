@@ -6,8 +6,10 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.FileProviders;
+using OpenTelemetry.Exporter;
 using OpenTelemetry.Instrumentation.AspNetCore;
 using OpenTelemetry.Metrics;
+using OpenTelemetry.Trace;
 using ProxyManager.Api.Middleware;
 using ProxyManager.Api.Routing;
 using ProxyManager.Api.Workers;
@@ -120,6 +122,9 @@ public partial class Program
         builder.Services.AddScoped<ProxyHostValidator>();
         builder.Services.AddScoped<ProxyHostService>();
 
+        // --- Traffic diagnostics (per-hostname proxy statistics, see ProxyManager.Proxy) ---
+        builder.Services.AddSingleton<TrafficMonitor>();
+
         // --- Redirects / access lists / audit ---
         builder.Services.AddSingleton<HostPolicyIndex>();
         builder.Services.AddSingleton<RedirectIndex>();
@@ -167,6 +172,7 @@ public partial class Program
         // --- Kestrel HTTPS with SNI certificate selection ---
         // --- Streams (TCP/UDP) ---
         builder.Services.AddSingleton<StreamStatusRegistry>();
+        builder.Services.AddSingleton<StreamMetrics>();
         builder.Services.AddSingleton<StreamListenerFactory>();
         builder.Services.AddSingleton<StreamHostService>();
         builder.Services.AddSingleton<IReservedPortsProvider>(new ReservedPortsProvider(builder.Configuration));
@@ -183,13 +189,41 @@ public partial class Program
         // --- YARP (empty initial config; ProxyConfigReloader swaps in the real routes) ---
         builder.Services.AddReverseProxy().LoadFromMemory([], []);
 
-        // --- Metrics (Prometheus; includes YARP's built-in meters) ---
-        builder.Services.AddOpenTelemetry()
-            .WithMetrics(metrics => metrics
+        // --- Metrics & traces ---
+        // Prometheus metrics on the admin port (ASP.NET, HttpClient, YARP's own meters and
+        // the ProxyManager.Traffic per-host meter). Distributed traces are only started when
+        // an OTLP endpoint is configured (OTEL_EXPORTER_OTLP_ENDPOINT or Diagnostics__Tracing__Endpoint),
+        // so the default deployment carries no tracing overhead.
+        var telemetry = builder.Services.AddOpenTelemetry();
+        telemetry.WithMetrics(metrics => metrics
+            .AddAspNetCoreInstrumentation()
+            .AddHttpClientInstrumentation()
+            .AddMeter("Yarp.ReverseProxy")
+            .AddMeter("ProxyManager.Traffic")
+            .AddPrometheusExporter());
+
+        var traceEndpoint = builder.Configuration["OTEL_EXPORTER_OTLP_ENDPOINT"]
+            ?? builder.Configuration["Diagnostics:Tracing:Endpoint"];
+        if (!string.IsNullOrWhiteSpace(traceEndpoint))
+        {
+            telemetry.WithTracing(tracing => tracing
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
-                .AddMeter("Yarp.ReverseProxy")
-                .AddPrometheusExporter());
+                .AddOtlpExporter(options =>
+                {
+                    // OTLP/HTTP (protobuf) — the compose Tempo config and most
+                    // self-hosted collectors expose an HTTP receiver; the gRPC default
+                    // would need an HTTP/2 endpoint instead.
+                    options.Protocol = OtlpExportProtocol.HttpProtobuf;
+                    // OpenTelemetry .NET 1.17 posts to the Endpoint as-is (no signal
+                    // path appended), so normalize the common "base URL" form
+                    // (http://host:4318) to the OTLP/HTTP traces path.
+                    var endpoint = new Uri(traceEndpoint);
+                    options.Endpoint = endpoint.AbsolutePath.Length <= 1
+                        ? new Uri(endpoint, "v1/traces")
+                        : endpoint;
+                }));
+        }
 
         // --- OIDC external login (optional; enabled by configuring Oidc:Authority) ---
         var oidcAuthority = builder.Configuration["Oidc:Authority"];
@@ -224,6 +258,8 @@ public partial class Program
 
         var app = builder.Build();
         sniSelector = app.Services.GetRequiredService<SniCertificateSelector>();
+        // Construct eagerly so its observable gauges register with the Prometheus meter.
+        _ = app.Services.GetRequiredService<StreamMetrics>();
 
         // --- Static file root: use the built frontend when present next to the source tree,
         //     otherwise the published wwwroot (Docker copies dist/client there). ---
@@ -261,7 +297,16 @@ public partial class Program
         var adminPort = GetAdminPort(builder.Configuration);
 
         app.UseMiddleware<ExceptionHandlingMiddleware>();
-        app.UseSerilogRequestLogging();
+        app.UseSerilogRequestLogging(options =>
+        {
+            options.MessageTemplate =
+                "HTTP {RequestMethod} {RequestPath} for {Host} responded {StatusCode} in {Elapsed:0.0000} ms";
+            options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+            {
+                diagnosticContext.Set("Host", httpContext.Request.Host.Value);
+                diagnosticContext.Set("ClientIP", httpContext.Connection.RemoteIpAddress?.ToString());
+            };
+        });
         app.UseMiddleware<AcmeChallengeResponderMiddleware>();
 
         // --- Pipeline layout (two Kestrel endpoint groups, one pipeline) ---
@@ -313,6 +358,7 @@ public partial class Program
         var httpsPort = GetEndpointPort(builder.Configuration, "Kestrel:Endpoints:Https:Url", 443);
         app.UseWhen(ctx => !IsAdminPort(ctx, adminPort), proxy =>
         {
+            proxy.UseMiddleware<TrafficMonitorMiddleware>();
             proxy.UseMiddleware<NotFoundPageMiddleware>();
             proxy.UseMiddleware<RedirectMiddleware>();
             proxy.UseMiddleware<AccessListMiddleware>();

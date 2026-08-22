@@ -81,6 +81,9 @@ export default function AdminLayout(props: ParentProps) {
               <a href="/admin/audit" class={isActive('/admin/audit') ? activeNav : inactiveNav}>
                 Audit Log
               </a>
+              <a href="/admin/diagnostics" class={isActive('/admin/diagnostics') ? activeNav : inactiveNav}>
+                Diagnostics
+              </a>
               <a href="/admin/settings" class={isActive('/admin/settings') ? activeNav : inactiveNav}>
                 Settings
               </a>
