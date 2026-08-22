@@ -16,6 +16,10 @@ data/
 *.db-wal
 *.pfx
 
+# --- NPM → YARP export artifacts (generated at the repo root; the script lives in scripts/) ---
+/npm-export-to-yarp*.json
+/npm-export-to-yarp*.report.md
+
 # --- Benchmark transient output ---
 benchmarks/k6/out/
 benchmarks/results.csv
