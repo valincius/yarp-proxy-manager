@@ -1,5 +1,5 @@
 import { Title } from '@solidjs/meta';
-import { useNavigate } from '@solidjs/router';
+import { revalidate, useNavigate } from '@solidjs/router';
 import HostForm from '../../../components/HostForm';
 import { api } from '../../../lib/api';
 import type { ProxyHostInput } from '../../../lib/types';
@@ -9,6 +9,11 @@ export default function NewHost() {
 
   async function create(input: ProxyHostInput) {
     await api.post('/hosts', input);
+    // The list and dashboard read through the router's query cache, which is
+    // only invalidated by an explicit revalidate — otherwise the new host is
+    // invisible until a full page refresh.
+    revalidate('hosts-list');
+    revalidate('dashboard');
     navigate('/admin/hosts');
   }
 

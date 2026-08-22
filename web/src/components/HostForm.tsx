@@ -1,5 +1,5 @@
 import { createSignal, createMemo, For, Show, type ParentProps } from 'solid-js';
-import { query } from '@solidjs/router';
+import { query, revalidate } from '@solidjs/router';
 import { api, ApiError } from '../lib/api';
 import Modal from './Modal';
 import { useToast } from '../lib/toast';
@@ -311,6 +311,10 @@ function CertificateCreateModal(props: {
         challengeType: challengeType(),
         dnsCredentialId: challengeType() === 'Dns01' ? dnsCredentialId() || null : null,
       });
+      // Surface the new certificate in this form's dropdown and on the
+      // certificates page without requiring a page refresh.
+      revalidate('host-form-certs');
+      revalidate('certificates');
       props.onDone(certificate);
     } catch (e) {
       setError(
@@ -403,6 +407,10 @@ function AccessListCreateModal(props: { onDone: (list: AccessList) => void }) {
         satisfyAny: satisfyAny(),
         rules: rules().filter((r) => r.pattern.trim().length > 0),
       });
+      // Surface the new list in this form's dropdown and on the access lists
+      // page without requiring a page refresh.
+      revalidate('host-form-access-lists');
+      revalidate('access-lists');
       props.onDone(list);
     } catch (e) {
       setError(

@@ -1,5 +1,6 @@
 import { Title } from '@solidjs/meta';
 import { createSignal, For, Show } from 'solid-js';
+import { revalidate } from '@solidjs/router';
 import { api, ApiError } from '../../lib/api';
 
 export default function Backup() {
@@ -49,6 +50,14 @@ export default function Backup() {
     try {
       const payload = JSON.parse(await file.text());
       await api.post('/backup/restore', payload);
+      // Restore replaces hosts, redirects, streams and access lists — drop the
+      // router query cache for every affected page so they refetch on visit.
+      revalidate('host');
+      revalidate('hosts-list');
+      revalidate('dashboard');
+      revalidate('redirects');
+      revalidate('streams');
+      revalidate('access-lists');
       setMessage('Configuration restored.');
     } catch (e) {
       setError(e instanceof ApiError ? e.errors ?? [e.message] : ['Restore failed — the file may not be a valid backup.']);

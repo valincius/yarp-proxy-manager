@@ -1,5 +1,5 @@
 import { Title } from '@solidjs/meta';
-import { query, useNavigate, type RouteDefinition, type RouteProps } from '@solidjs/router';
+import { query, revalidate, useNavigate, type RouteDefinition, type RouteProps } from '@solidjs/router';
 import { createMemo, Loading, Show } from 'solid-js';
 import HostForm from '../../../components/HostForm';
 import { api } from '../../../lib/api';
@@ -21,6 +21,11 @@ export default function EditHost(props: RouteProps<'/admin/hosts/:id'>) {
 
   async function update(input: ProxyHostInput) {
     await api.put(`/hosts/${props.params.id}`, input);
+    // Invalidate the router query cache for this host, the list, and the
+    // dashboard so returning to them shows the saved values without a refresh.
+    revalidate('host');
+    revalidate('hosts-list');
+    revalidate('dashboard');
     navigate('/admin/hosts');
   }
 
