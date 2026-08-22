@@ -189,17 +189,33 @@ public sealed class CertesAcmeClient(
         await order.Finalize(csrDer);
 
         var chain = await PollForCertificateAsync(order, cancellationToken);
-        var leaf = X509CertificateLoader.LoadCertificate(chain.Certificate.ToDer());
-        var privateKey = KeyFactory.FromPem(rsa.ExportPkcs8PrivateKeyPem());
+        using var leaf = X509CertificateLoader.LoadCertificate(chain.Certificate.ToDer());
+        var pfx = BuildPfx(chain.Certificate.ToDer(), rsa, chain.Issuers.Select(i => i.ToDer()), pfxPassword);
+        return new AcmeIssuedCertificate(pfx, leaf.NotBefore, leaf.NotAfter);
+    }
 
-        var pfxBuilder = new PfxBuilder(chain.Certificate.ToDer(), privateKey) { FullChain = true };
-        foreach (var issuer in chain.Issuers)
+    /// <summary>
+    /// Bundles the leaf (with the CSR private key) and its intermediate(s) into a PKCS#12
+    /// PFX. Built manually with System.Security.Cryptography because Certes' PfxBuilder
+    /// resolves issuers against its built-in trust store and cannot handle chains from
+    /// CAs it does not ship (e.g. the Let's Encrypt staging chain).
+    /// </summary>
+    internal static byte[] BuildPfx(
+        byte[] leafDer,
+        RSA leafPrivateKey,
+        IEnumerable<byte[]> issuerDers,
+        string password)
+    {
+        using var leaf = X509CertificateLoader.LoadCertificate(leafDer);
+        using var leafWithKey = leaf.CopyWithPrivateKey(leafPrivateKey);
+        var collection = new X509Certificate2Collection { leafWithKey };
+        foreach (var issuerDer in issuerDers)
         {
-            pfxBuilder.AddIssuer(issuer.ToDer());
+            collection.Add(X509CertificateLoader.LoadCertificate(issuerDer));
         }
 
-        var pfx = pfxBuilder.Build(commonName, pfxPassword);
-        return new AcmeIssuedCertificate(pfx, leaf.NotBefore, leaf.NotAfter);
+        return collection.Export(X509ContentType.Pfx, password)
+            ?? throw new InvalidOperationException("Failed to export the certificate chain as PFX.");
     }
 
     public void Dispose()

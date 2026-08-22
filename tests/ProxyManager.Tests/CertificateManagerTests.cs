@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Security.Cryptography.X509Certificates;
 using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -283,6 +285,70 @@ public sealed class CertificateManagerTests : IDisposable
     [InlineData("\"\"", "")]
     public void Unquote_RemovesTxtQuotes(string data, string expected)
         => CertesAcmeClient.Unquote(data).Should().Be(expected);
+
+    [Fact]
+    public void BuildPfx_BundlesLeafKeyAndIssuerChain()
+    {
+        var (intermediate, leafDer, leafKey) = CreateCaSignedChain("chain.example.com");
+        using (leafKey)
+        {
+            var pfx = CertesAcmeClient.BuildPfx(leafDer, leafKey, [intermediate], "pw-123");
+
+            using var leaf = X509CertificateLoader.LoadPkcs12(pfx, "pw-123", X509KeyStorageFlags.EphemeralKeySet);
+            leaf.HasPrivateKey.Should().BeTrue();
+            leaf.Subject.Should().Contain("chain.example.com");
+
+            var all = X509CertificateLoader.LoadPkcs12Collection(pfx, "pw-123", X509KeyStorageFlags.EphemeralKeySet);
+            try
+            {
+                all.Count.Should().Be(2);
+                all.Cast<X509Certificate2>().Any(c => c.Subject.Contains("Test Intermediate")).Should().BeTrue();
+            }
+            finally
+            {
+                foreach (var cert in all)
+                {
+                    cert.Dispose();
+                }
+            }
+        }
+    }
+
+    /// <summary>Root → intermediate → leaf chain; returns the intermediate (public), leaf (public) and leaf key.</summary>
+    private static (byte[] Intermediate, byte[] Leaf, RSA LeafKey) CreateCaSignedChain(string domain)
+    {
+        using var rootRsa = RSA.Create(2048);
+        var rootReq = new CertificateRequest(
+            "CN=Test Root", rootRsa, System.Security.Cryptography.HashAlgorithmName.SHA256,
+            System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+        rootReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
+        using var root = rootReq.CreateSelfSigned(DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(30));
+
+        using var interRsa = RSA.Create(2048);
+        var interReq = new CertificateRequest(
+            "CN=Test Intermediate", interRsa, System.Security.Cryptography.HashAlgorithmName.SHA256,
+            System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+        interReq.CertificateExtensions.Add(new X509BasicConstraintsExtension(true, false, 0, true));
+        var inter = interReq.Create(root, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(29), Guid.NewGuid().ToByteArray());
+        using var interWithKey = inter.CopyWithPrivateKey(interRsa);
+
+        using var leafRsa = RSA.Create(2048);
+        var leafReq = new CertificateRequest(
+            $"CN={domain}", leafRsa, System.Security.Cryptography.HashAlgorithmName.SHA256,
+            System.Security.Cryptography.RSASignaturePadding.Pkcs1);
+        var sanBuilder = new System.Security.Cryptography.X509Certificates.SubjectAlternativeNameBuilder();
+        sanBuilder.AddDnsName(domain);
+        leafReq.CertificateExtensions.Add(sanBuilder.Build());
+        var leaf = leafReq.Create(interWithKey, DateTimeOffset.UtcNow.AddDays(-1), DateTimeOffset.UtcNow.AddDays(28), Guid.NewGuid().ToByteArray());
+
+        // Copy the leaf key — the caller owns and disposes the returned key.
+        var leafKeyCopy = RSA.Create(2048);
+        leafKeyCopy.ImportParameters(leafRsa.ExportParameters(includePrivateParameters: true));
+
+        return (inter.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert),
+            leaf.Export(System.Security.Cryptography.X509Certificates.X509ContentType.Cert),
+            leafKeyCopy);
+    }
 
     public static class SelfSignedCertificate
     {
