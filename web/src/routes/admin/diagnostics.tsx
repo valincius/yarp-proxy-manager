@@ -38,15 +38,19 @@ export default function Diagnostics() {
   const traffic = createMemo(() => loadTraffic(window()));
   const requests = createMemo(() => (isAdmin() ? loadRequests() : []));
 
-  // Live refresh: revalidate the three queries every few seconds.
-  createEffect(() => {
-    const timer = setInterval(() => {
-      revalidate('diagnostics-overview');
-      revalidate('diagnostics-traffic');
-      revalidate('diagnostics-requests');
-    }, REFRESH_MS);
-    return () => clearInterval(timer);
-  });
+  // Live refresh: Solid 2's createEffect takes (compute, effect) — the compute runs
+  // once with a stable value and the effect schedules the revalidate interval.
+  createEffect(
+    () => REFRESH_MS,
+    (ms) => {
+      const timer = setInterval(() => {
+        revalidate('diagnostics-overview');
+        revalidate('diagnostics-traffic');
+        revalidate('diagnostics-requests');
+      }, ms);
+      return () => clearInterval(timer);
+    },
+  );
 
   function refreshNow() {
     revalidate('diagnostics-overview');
