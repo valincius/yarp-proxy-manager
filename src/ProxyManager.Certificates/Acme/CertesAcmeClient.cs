@@ -26,10 +26,16 @@ public sealed class CertesAcmeClient(ILogger<CertesAcmeClient> logger) : IAcmeCl
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
-            // No account exists for this key yet — create one.
-            await _context.NewAccount([email], true);
+            // No account exists for this key yet — create one. Certes' NewAccount expects
+            // contact URIs; a raw email is rejected by the CA with
+            // 'acme:error:unsupportedContact: only contact scheme mailto: is supported'.
+            await _context.NewAccount([BuildAccountContact(email)], true);
         }
     }
+
+    /// <summary>Certes NewAccount takes contact URIs — prefix the account email with <c>mailto:</c>.</summary>
+    internal static string BuildAccountContact(string email) =>
+        email.StartsWith("mailto:", StringComparison.OrdinalIgnoreCase) ? email : $"mailto:{email}";
 
     public async Task<string> CreateOrderAsync(string[] domains, CancellationToken cancellationToken)
     {

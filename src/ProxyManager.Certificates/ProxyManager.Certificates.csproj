@@ -15,6 +15,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="ProxyManager.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\ProxyManager.Application\ProxyManager.Application.csproj" />
     <ProjectReference Include="..\ProxyManager.Domain\ProxyManager.Domain.csproj" />
   </ItemGroup>

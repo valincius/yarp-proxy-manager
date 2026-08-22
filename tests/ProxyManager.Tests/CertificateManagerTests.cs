@@ -2,6 +2,7 @@ using FluentAssertions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using ProxyManager.Application.Certificates;
+using ProxyManager.Application.Exceptions;
 using ProxyManager.Certificates;
 using ProxyManager.Certificates.Acme;
 using ProxyManager.Domain;
@@ -133,7 +134,8 @@ public sealed class CertificateManagerTests : IDisposable
         var act = async () => await _manager.IssueAsync(new IssueCertificateRequest(
             "No account", ["app.example.com"], "Http01", null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<AcmeOperationException>()
+            .WithMessage("*No ACME account is configured*");
         var certificate = _repository.Certificates.Should().ContainSingle().Subject;
         certificate.Status.Should().Be(CertificateStatus.Failed);
         certificate.LastRenewalError.Should().NotBeNullOrWhiteSpace();
@@ -152,7 +154,8 @@ public sealed class CertificateManagerTests : IDisposable
         var act = async () => await _manager.IssueAsync(new IssueCertificateRequest(
             "Fails", ["app.example.com"], "Http01", null), CancellationToken.None);
 
-        await act.Should().ThrowAsync<InvalidOperationException>();
+        await act.Should().ThrowAsync<AcmeOperationException>()
+            .WithMessage("*Validation failed (scripted)*");
         var certificate = _repository.Certificates.Should().ContainSingle().Subject;
         certificate.Status.Should().Be(CertificateStatus.Failed);
         certificate.LastRenewalError.Should().NotBeNullOrWhiteSpace();
@@ -260,6 +263,13 @@ public sealed class CertificateManagerTests : IDisposable
         settings.Staging.Should().BeTrue();
         settings.Email.Should().Be("me@example.com");
     }
+
+    [Theory]
+    [InlineData("john@example.com", "mailto:john@example.com")]
+    [InlineData("mailto:john@example.com", "mailto:john@example.com")]
+    [InlineData("MAILTO:john@example.com", "MAILTO:john@example.com")]
+    public void BuildAccountContact_PrefixesMailto(string email, string expected)
+        => CertesAcmeClient.BuildAccountContact(email).Should().Be(expected);
 
     public static class SelfSignedCertificate
     {

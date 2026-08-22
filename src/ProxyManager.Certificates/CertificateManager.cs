@@ -183,7 +183,14 @@ public sealed class CertificateManager(
             certificate.UpdatedAt = _time.GetUtcNow();
             await repository.UpdateCertificateAsync(certificate, cancellationToken);
             fileStore.Delete(certificate.Id);
-            throw;
+            // Surface the real failure to the API consumer (422 with the CA/network
+            // message) instead of a generic 500. Domain exceptions keep their status.
+            throw ex switch
+            {
+                NotFoundException or ValidationException or DomainConflictException => ex,
+                AcmeOperationException => ex,
+                _ => new AcmeOperationException(ex.Message, ex),
+            };
         }
         finally
         {

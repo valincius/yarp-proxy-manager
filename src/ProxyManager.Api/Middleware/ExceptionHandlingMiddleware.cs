@@ -28,6 +28,10 @@ public sealed class ExceptionHandlingMiddleware(
         {
             await WriteProblemAsync(context, StatusCodes.Status404NotFound, ex.Message);
         }
+        catch (AcmeOperationException ex)
+        {
+            await WriteProblemAsync(context, StatusCodes.Status422UnprocessableEntity, ex.Message);
+        }
         catch (Exception ex)
         {
             logger.LogError(ex, "Unhandled exception during request {Method} {Path}",
