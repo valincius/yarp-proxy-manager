@@ -58,7 +58,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     throw new ApiError(response.status, title, errors);
   }
 
-  return response.json() as Promise<T>;
+  // Some endpoints (e.g. backup/restore) return 200 with an empty body — treat
+  // those like 204 instead of failing on JSON.parse of an empty string.
+  const text = await response.text();
+  if (text.length === 0) {
+    return undefined as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 export const api = {

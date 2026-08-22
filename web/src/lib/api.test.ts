@@ -48,4 +48,11 @@ describe('api client', () => {
     const result = await api.del('/hosts/abc');
     expect(result).toBeUndefined();
   });
+
+  it('returns undefined for 200 responses with an empty body (e.g. backup/restore)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+
+    const result = await api.post('/backup/restore', { hosts: [], redirects: [], streams: [], accessLists: [] });
+    expect(result).toBeUndefined();
+  });
 });

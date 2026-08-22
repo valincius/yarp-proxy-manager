@@ -66,7 +66,7 @@ public sealed class BackupController(
 
         await db.SaveChangesAsync(cancellationToken);
         notifier.Notify();
-        return Ok();
+        return NoContent();
     }
 }
 
