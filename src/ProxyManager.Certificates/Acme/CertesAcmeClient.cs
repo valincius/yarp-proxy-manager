@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
@@ -10,8 +11,11 @@ using Microsoft.Extensions.Logging;
 namespace ProxyManager.Certificates.Acme;
 
 /// <summary>Certes-backed <see cref="IAcmeClient"/>.</summary>
-public sealed class CertesAcmeClient(ILogger<CertesAcmeClient> logger) : IAcmeClient
+public sealed class CertesAcmeClient(
+    ILogger<CertesAcmeClient> logger,
+    IHttpClientFactory httpClientFactory) : IAcmeClient
 {
+    private const string DnsProbeClientName = "DnsProbe";
     private readonly Dictionary<string, IOrderContext> _orders = new();
     private AcmeContext? _context;
 
@@ -69,7 +73,7 @@ public sealed class CertesAcmeClient(ILogger<CertesAcmeClient> logger) : IAcmeCl
                     type,
                     domain,
                     keyAuthz,
-                    type == "dns-01" ? $"_acme-challenge.{domain}" : null,
+                    type == "dns-01" ? BuildDnsRecordName(domain) : null,
                     type == "dns-01" ? ComputeDnsRecordValue(keyAuthz) : null));
             }
         }
@@ -86,6 +90,52 @@ public sealed class CertesAcmeClient(ILogger<CertesAcmeClient> logger) : IAcmeCl
         }
 
         await challenge.Validate();
+    }
+
+    /// <summary>
+    /// Polls public DNS (Google DoH) until the TXT record carries the expected value. The
+    /// CA can mark a DNS-01 challenge invalid if it queries before the record propagates,
+    /// so callers must wait for propagation before asking the CA to validate.
+    /// </summary>
+    public async Task WaitForTxtPropagationAsync(
+        string recordName,
+        string expectedValue,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        var consecutiveErrors = 0;
+        while (DateTime.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                if (await ContainsTxtValueAsync(recordName, expectedValue, cancellationToken))
+                {
+                    return;
+                }
+
+                consecutiveErrors = 0;
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                // The DNS-over-HTTPS endpoint may be unreachable (no internet / firewall).
+                // After a few failures, give up verifying and proceed after a short grace
+                // delay rather than failing the whole issuance.
+                consecutiveErrors++;
+                if (consecutiveErrors >= 3)
+                {
+                    logger.LogWarning(ex, "DNS propagation check unavailable; proceeding after a delay for '{Name}'.", recordName);
+                    await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+                    return;
+                }
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
+        }
+
+        throw new TimeoutException(
+            $"TXT record '{recordName}' did not propagate within {(int)timeout.TotalSeconds}s.");
     }
 
     public async Task WaitForChallengeAsync(string orderId, string token, TimeSpan timeout, CancellationToken cancellationToken)
@@ -214,4 +264,35 @@ public sealed class CertesAcmeClient(ILogger<CertesAcmeClient> logger) : IAcmeCl
             .Replace('+', '-')
             .Replace('/', '_');
     }
+
+    /// <summary>
+    /// RFC 8555 §8.4: for a wildcard identifier the TXT record lives under the base
+    /// domain (no wildcard label), e.g. <c>_acme-challenge.valincius.dev</c> for
+    /// <c>*.valincius.dev</c>.
+    /// </summary>
+    internal static string BuildDnsRecordName(string domain)
+    {
+        var host = domain.StartsWith("*.", StringComparison.Ordinal) ? domain[2..] : domain;
+        return $"_acme-challenge.{host}";
+    }
+
+    private async Task<bool> ContainsTxtValueAsync(string recordName, string expectedValue, CancellationToken cancellationToken)
+    {
+        var client = httpClientFactory.CreateClient(DnsProbeClientName);
+        var url = $"https://dns.google/resolve?name={Uri.EscapeDataString(recordName)}&type=TXT";
+        var response = await client.GetFromJsonAsync<DnsJsonResponse>(url, cancellationToken);
+        if (response?.Answer is null)
+        {
+            return false;
+        }
+
+        return response.Answer.Any(a => a.Type == 16 && Unquote(a.Data) == expectedValue);
+    }
+
+    /// <summary>TXT rdata in DNS-over-HTTPS JSON is double-quoted (e.g. "\"value\"").</summary>
+    internal static string Unquote(string txtData) => txtData.Trim().Trim('"');
+
+    private sealed record DnsJsonResponse(int Status, DnsAnswer[]? Answer);
+
+    private sealed record DnsAnswer(string Name, int Type, int TTL, string Data);
 }

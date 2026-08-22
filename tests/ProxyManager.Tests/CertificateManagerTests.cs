@@ -271,6 +271,19 @@ public sealed class CertificateManagerTests : IDisposable
     public void BuildAccountContact_PrefixesMailto(string email, string expected)
         => CertesAcmeClient.BuildAccountContact(email).Should().Be(expected);
 
+    [Theory]
+    [InlineData("customkeys.gg", "_acme-challenge.customkeys.gg")]
+    [InlineData("abc.valincius.dev", "_acme-challenge.abc.valincius.dev")]
+    [InlineData("*.valincius.dev", "_acme-challenge.valincius.dev")]
+    public void BuildDnsRecordName_StripsWildcardLabel(string domain, string expected)
+        => CertesAcmeClient.BuildDnsRecordName(domain).Should().Be(expected);
+
+    [Theory]
+    [InlineData("\"abc-def_123\"", "abc-def_123")]
+    [InlineData("\"\"", "")]
+    public void Unquote_RemovesTxtQuotes(string data, string expected)
+        => CertesAcmeClient.Unquote(data).Should().Be(expected);
+
     public static class SelfSignedCertificate
     {
         private static System.Security.Cryptography.X509Certificates.CertificateRequest CreateRequest(

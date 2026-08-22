@@ -149,6 +149,20 @@ public sealed class CertificateManager(
                     $"The ACME CA did not offer '{request.ChallengeType}' challenges for the requested domains.");
             }
 
+            // DNS-01: the CA rejects challenges validated before the TXT record has
+            // propagated — poll public DNS until the record is visible, then validate.
+            if (request.ChallengeType == "Dns01")
+            {
+                foreach (var (challenge, _) in handled)
+                {
+                    await acmeClient.WaitForTxtPropagationAsync(
+                        challenge.DnsRecordName!,
+                        challenge.DnsRecordValue!,
+                        TimeSpan.FromSeconds(120),
+                        cancellationToken);
+                }
+            }
+
             foreach (var (challenge, _) in handled)
             {
                 await acmeClient.ValidateChallengeAsync(orderId, challenge.Token, cancellationToken);

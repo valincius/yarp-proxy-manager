@@ -154,6 +154,8 @@ public partial class Program
 
         // --- Certificates subsystem ---
         builder.Services.AddHttpClient("CloudflareDns", client => client.Timeout = TimeSpan.FromSeconds(30));
+        // DNS-over-HTTPS probe used to wait for DNS-01 TXT propagation before validation.
+        builder.Services.AddHttpClient("DnsProbe", client => client.Timeout = TimeSpan.FromSeconds(10));
         builder.Services.AddSingleton<ForceHttpsIndex>();
         builder.Services.AddSingleton<CertificateFileStore>(_ => new CertificateFileStore(dataDir));
         builder.Services.AddSingleton<Http01ChallengeStore>();

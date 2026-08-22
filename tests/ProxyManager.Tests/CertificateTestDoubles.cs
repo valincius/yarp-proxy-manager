@@ -72,6 +72,9 @@ public sealed class FakeAcmeClient : IAcmeClient
         return Task.CompletedTask;
     }
 
+    public Task WaitForTxtPropagationAsync(string recordName, string expectedValue, TimeSpan timeout, CancellationToken cancellationToken)
+        => Task.CompletedTask;
+
     public Task WaitForChallengeAsync(string orderId, string token, TimeSpan timeout, CancellationToken cancellationToken)
         => Task.CompletedTask;
 
