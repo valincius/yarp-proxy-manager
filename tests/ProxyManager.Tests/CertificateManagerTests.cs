@@ -350,6 +350,26 @@ public sealed class CertificateManagerTests : IDisposable
             leafKeyCopy);
     }
 
+    [Fact]
+    public async Task IssueAsync_Http01WithWildcard_ThrowsClearError()
+    {
+        SeedAcmeAccount();
+        // A wildcard authorization never offers http-01, so an HTTP-01 request for a
+        // wildcard must fail fast with a clear message instead of half-validating.
+        _acme.Challenges =
+        [
+            new AcmeChallengeDescriptor("t-apex", "http-01", "customkeys.gg", "ka-apex", null, null),
+            new AcmeChallengeDescriptor("t-wild", "tls-alpn-01", "*.customkeys.gg", "ka-wild", null, null),
+        ];
+
+        var act = async () => await _manager.IssueAsync(new IssueCertificateRequest(
+            "Wildcard via http", ["customkeys.gg", "*.customkeys.gg"], "Http01", null), CancellationToken.None);
+
+        await act.Should().ThrowAsync<AcmeOperationException>()
+            .WithMessage("*HTTP-01 is not available for them*");
+        _repository.Certificates.Should().ContainSingle().Subject.Status.Should().Be(CertificateStatus.Failed);
+    }
+
     public static class SelfSignedCertificate
     {
         private static System.Security.Cryptography.X509Certificates.CertificateRequest CreateRequest(

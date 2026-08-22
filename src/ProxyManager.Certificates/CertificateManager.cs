@@ -149,6 +149,22 @@ public sealed class CertificateManager(
                     $"The ACME CA did not offer '{request.ChallengeType}' challenges for the requested domains.");
             }
 
+            // Every requested domain must have a handled challenge, otherwise the order can
+            // never finalize and the CA fails in confusing ways (e.g. HTTP-01 cannot cover a
+            // wildcard identifier, which only supports dns-01/tls-alpn-01). Fail fast instead.
+            var handledDomains = handled.Select(h => h.Challenge.Domain).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var unhandledDomains = challenges
+                .Select(c => c.Domain)
+                .Distinct()
+                .Where(d => !handledDomains.Contains(d))
+                .ToList();
+            if (unhandledDomains.Count > 0)
+            {
+                throw new InvalidOperationException(
+                    $"The ACME CA did not offer '{request.ChallengeType}' challenges for: {string.Join(", ", unhandledDomains)}. " +
+                    $"Wildcard domains require DNS-01 (HTTP-01 is not available for them).");
+            }
+
             // DNS-01: the CA rejects challenges validated before the TXT record has
             // propagated — poll public DNS until the record is visible, then validate.
             if (request.ChallengeType == "Dns01")
