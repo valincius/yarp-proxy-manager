@@ -23,6 +23,7 @@ public sealed class CertificateManager(
     Http01ChallengeStore challengeStore,
     CertificateFileStore fileStore,
     SniCertificateSelector sniSelector,
+    CertificateDeduplicator deduplicator,
     IConfigReloadNotifier notifier,
     IssueCertificateValidator issueValidator,
     UploadCertificateValidator uploadValidator,
@@ -47,7 +48,21 @@ public sealed class CertificateManager(
     {
         await issueValidator.ValidateAndThrowAsync(request, cancellationToken);
 
+        // Idempotent issuance: if a valid certificate already covers exactly the same
+        // domains, reuse it instead of creating a duplicate row and burning an ACME
+        // rate-limit slot. The UI's "auto-request on host create" relies on this.
         var now = _time.GetUtcNow();
+        var existing = (await repository.ListCertificatesAsync(cancellationToken))
+            .Where(c => c.Status == CertificateStatus.Issued
+                && (c.NotAfter is null || c.NotAfter > now)
+                && DomainName.SameSet(c.Domains, request.Domains))
+            .OrderByDescending(c => c.CreatedAt)
+            .FirstOrDefault();
+        if (existing is not null)
+        {
+            return existing;
+        }
+
         var certificate = new Certificate
         {
             Id = Guid.NewGuid(),
@@ -205,6 +220,10 @@ public sealed class CertificateManager(
             certificate.LastRenewalError = null;
             certificate.UpdatedAt = _time.GetUtcNow();
             await repository.UpdateCertificateAsync(certificate, cancellationToken);
+
+            // Remove any other rows covering the same domains (e.g. a leftover Failed
+            // attempt or a duplicate issue) and re-point hosts/redirects to this cert.
+            await deduplicator.DeduplicateAsync(certificate, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -299,6 +318,9 @@ public sealed class CertificateManager(
         record.PfxPath = await fileStore.SavePfxAsync(record.Id, pfx, cancellationToken);
         record.EncryptedPfxPassword = secrets.Protect(pfxPassword);
         await repository.AddCertificateAsync(record, cancellationToken);
+
+        // A manual upload supersedes any existing row covering the same domains.
+        await deduplicator.DeduplicateAsync(record, cancellationToken);
 
         notifier.Notify();
         await sniSelector.ReloadAsync(cancellationToken);

@@ -32,7 +32,16 @@ const loadDnsCredentials = query(
 interface HostFormProps {
   initial?: ProxyHost;
   submitLabel: string;
-  onSubmit: (input: ProxyHostInput) => Promise<void>;
+  /** Create mode only: shows the auto-request-certificate checkbox. */
+  isCreate?: boolean;
+  onSubmit: (input: ProxyHostInput, options: HostSubmitOptions) => Promise<void>;
+}
+
+export interface HostSubmitOptions {
+  /** Request a certificate for the host's domains after saving (create mode). */
+  autoCert: boolean;
+  /** DNS credential for DNS-01 when the host has wildcard domains. */
+  dnsCredentialId: string | null;
 }
 
 const inputClass =
@@ -45,6 +54,22 @@ function Field(props: { label: string; hint?: string; children: ParentProps['chi
       {props.children}
       {props.hint ? <span class="mt-1 block text-xs text-slate-500">{props.hint}</span> : null}
     </label>
+  );
+}
+
+/**
+ * Like <see cref="Field"/> but renders a plain <div> instead of a <label>.
+ * Used for controls that contain interactive children (select + button):
+ * nesting a button inside a <label> makes the browser forward the click to
+ * the select, so the button becomes unclickable.
+ */
+function FieldControl(props: { label: string; hint?: string; children: ParentProps['children'] }) {
+  return (
+    <div class="block">
+      <span class="text-sm font-medium text-slate-700">{props.label}</span>
+      {props.children}
+      {props.hint ? <span class="mt-1 block text-xs text-slate-500">{props.hint}</span> : null}
+    </div>
   );
 }
 
@@ -101,7 +126,20 @@ export default function HostForm(props: HostFormProps) {
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string[] | null>(null);
 
-  // Inline-create modals.
+  // Auto-request a certificate on host creation.
+  const [autoCert, setAutoCert] = createSignal(false);
+  const [dnsCredentialId, setDnsCredentialId] = createSignal('');
+  const hasWildcard = createMemo(() =>
+    domains()
+      .split(',')
+      .map((d) => d.trim())
+      .some((d) => d.startsWith('*.')),
+  );
+
+  // The certificate/access-list options load asynchronously, so a `value={...}`
+  // binding on the select would be applied before the options exist and never
+  // re-applied. Instead, mark the matching <option> as `selected` — evaluated
+  // when each option renders, so the attached certificate/list shows correctly.
   const [showCertModal, setShowCertModal] = createSignal(false);
   const [showAccessListModal, setShowAccessListModal] = createSignal(false);
 
@@ -109,6 +147,12 @@ export default function HostForm(props: HostFormProps) {
     event.preventDefault();
     setBusy(true);
     setError(null);
+
+    if (autoCert() && hasWildcard() && !dnsCredentialId()) {
+      setError(['Wildcard domains require DNS-01 — select a DNS credential or uncheck auto-request.']);
+      setBusy(false);
+      return;
+    }
 
     const input: ProxyHostInput = {
       name: name(),
@@ -137,7 +181,7 @@ export default function HostForm(props: HostFormProps) {
     };
 
     try {
-      await props.onSubmit(input);
+      await props.onSubmit(input, { autoCert: autoCert(), dnsCredentialId: dnsCredentialId() || null });
       toast.push(props.initial ? 'Host updated.' : 'Host created.', 'success');
     } catch (e) {
       setError(
@@ -186,17 +230,23 @@ export default function HostForm(props: HostFormProps) {
         </div>
 
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <Field label="Certificate (for HTTPS)" hint="Served for this host's domains via SNI.">
+          <FieldControl label="Certificate (for HTTPS)" hint="Served for this host's domains via SNI.">
             <div class="mt-1 flex gap-2">
-              <select class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" value={certificateId()} onChange={(e) => setCertificateId(e.currentTarget.value)}>
+              <select class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" onChange={(e) => setCertificateId(e.currentTarget.value)}>
                 <option value="">— none —</option>
-                <For each={certificates()}>
-                  {(certificate) => (
-                    <option value={certificate.id} disabled={certificate.status !== 'Issued'}>
-                      {certificate.name} ({certificate.domains.join(', ')})
-                    </option>
-                  )}
-                </For>
+                <Show when={certificates()} fallback={<option disabled>Loading certificates…</option>}>
+                  <For each={certificates()!}>
+                    {(certificate) => (
+                      <option
+                        value={certificate.id}
+                        selected={certificate.id === certificateId()}
+                        disabled={certificate.status !== 'Issued' && certificate.id !== certificateId()}
+                      >
+                        {certificate.name} ({certificate.domains.join(', ')}){certificate.status !== 'Issued' ? ` — ${certificate.status}` : ''}
+                      </option>
+                    )}
+                  </For>
+                </Show>
               </select>
               <button
                 type="button"
@@ -206,14 +256,16 @@ export default function HostForm(props: HostFormProps) {
                 + New
               </button>
             </div>
-          </Field>
-          <Field label="Access List" hint="Allow/deny rules enforced before proxying.">
+          </FieldControl>
+          <FieldControl label="Access List" hint="Allow/deny rules enforced before proxying.">
             <div class="mt-1 flex gap-2">
-              <select class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" value={accessListId()} onChange={(e) => setAccessListId(e.currentTarget.value)}>
+              <select class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500" onChange={(e) => setAccessListId(e.currentTarget.value)}>
                 <option value="">— none —</option>
-                <For each={accessLists()}>
-                  {(list) => <option value={list.id}>{list.name}</option>}
-                </For>
+                <Show when={accessLists()} fallback={<option disabled>Loading access lists…</option>}>
+                  <For each={accessLists()!}>
+                    {(list) => <option value={list.id} selected={list.id === accessListId()}>{list.name}</option>}
+                  </For>
+                </Show>
               </select>
               <button
                 type="button"
@@ -223,8 +275,38 @@ export default function HostForm(props: HostFormProps) {
                 + New
               </button>
             </div>
-          </Field>
+          </FieldControl>
         </div>
+
+        <Show when={props.isCreate}>
+          <div class="space-y-3 rounded-lg border border-slate-200 p-4">
+            <Toggle
+              label="Request a certificate for these domains after creating the host"
+              checked={autoCert()}
+              onChange={setAutoCert}
+            />
+            <Show when={autoCert()}>
+              <p class="text-xs text-slate-500">
+                {hasWildcard()
+                  ? 'Wildcard domains require DNS-01 — choose the DNS credential used to publish TXT records.'
+                  : 'Uses HTTP-01 (port 80) — the proxy answers the ACME challenge automatically. Takes up to a minute.'}
+              </p>
+              <Show when={hasWildcard()}>
+                <label class="block">
+                  <span class="text-sm font-medium text-slate-700">DNS credential</span>
+                  <select class={inputClass} value={dnsCredentialId()} onChange={(e) => setDnsCredentialId(e.currentTarget.value)} required>
+                    <option value="">Select credential…</option>
+                    <Show when={dnsCredentials()} fallback={<option disabled>Loading credentials…</option>}>
+                      <For each={dnsCredentials()!}>
+                        {(credential) => <option value={credential.id}>{credential.name} ({credential.provider})</option>}
+                      </For>
+                    </Show>
+                  </select>
+                </label>
+              </Show>
+            </Show>
+          </div>
+        </Show>
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Toggle label="Enabled" checked={enabled()} onChange={setEnabled} />

@@ -169,6 +169,7 @@ public partial class Program
         builder.Services.AddScoped<DnsCredentialValidator>();
         builder.Services.AddScoped<AcmeSettingsValidator>();
         builder.Services.AddScoped<CertificateManager>();
+        builder.Services.AddScoped<CertificateDeduplicator>();
         builder.Services.AddHostedService<CertificateRenewalWorker>();
 
         // --- Kestrel HTTPS with SNI certificate selection ---
@@ -407,6 +408,8 @@ public partial class Program
         await MigrateAndSeedAsync(services);
         await services.GetRequiredService<ProxyConfigReloader>().ReloadAsync();
         await services.GetRequiredService<SniCertificateSelector>().ReloadAsync();
+        // Collapse any duplicate certificate rows left by earlier versions (one per domain set).
+        await services.GetRequiredService<CertificateDeduplicator>().SweepAsync();
     }
 
     private static string DataDirectory(WebApplicationBuilder builder) =>

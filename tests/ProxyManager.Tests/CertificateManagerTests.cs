@@ -18,14 +18,24 @@ public sealed class CertificateManagerTests : IDisposable
     private readonly FakeAcmeClient _acme = new();
     private readonly FakeDnsChallengeProvider _dns = new();
     private readonly Http01ChallengeStore _challenges = new();
+    private readonly InMemoryHostRepository _hosts = new();
+    private readonly InMemoryRedirectHostRepository _redirects = new();
     private readonly string _dataDirectory;
     private readonly SniCertificateSelector _selector;
+    private readonly CertificateDeduplicator _deduplicator;
     private readonly CertificateManager _manager;
 
     public CertificateManagerTests()
     {
         _dataDirectory = Path.Combine(Path.GetTempPath(), "cert-tests-" + Guid.NewGuid().ToString("N"));
         _selector = CreateSelector(_repository, _dataDirectory);
+        _deduplicator = new CertificateDeduplicator(
+            _repository,
+            _hosts,
+            _redirects,
+            new CertificateFileStore(_dataDirectory),
+            new NoopReloadNotifier(),
+            NullLogger<CertificateDeduplicator>.Instance);
         _manager = new CertificateManager(
             _repository,
             new FakeSecretProtector(),
@@ -34,6 +44,7 @@ public sealed class CertificateManagerTests : IDisposable
             _challenges,
             new CertificateFileStore(_dataDirectory),
             _selector,
+            _deduplicator,
             new NoopReloadNotifier(),
             new IssueCertificateValidator(),
             new UploadCertificateValidator(),
@@ -179,6 +190,125 @@ public sealed class CertificateManagerTests : IDisposable
         renewed.Id.Should().Be(original.Id);
         renewed.Status.Should().Be(CertificateStatus.Issued);
         _acme.CreatedOrders.Should().Contain("app.example.com");
+    }
+
+    [Fact]
+    public async Task IssueAsync_SameDomainsAlreadyIssued_ReturnsExistingWithoutNewOrder()
+    {
+        SeedAcmeAccount();
+        _acme.Challenges =
+        [
+            new AcmeChallengeDescriptor("token-1", "http-01", "app.example.com", "ka-1", null, null),
+        ];
+        var first = await _manager.IssueAsync(new IssueCertificateRequest(
+            "First", ["app.example.com"], "Http01", null), CancellationToken.None);
+        first.Status.Should().Be(CertificateStatus.Issued);
+        var ordersAfterFirst = _acme.CreatedOrders.Count;
+
+        var second = await _manager.IssueAsync(new IssueCertificateRequest(
+            "Second", ["app.example.com"], "Http01", null), CancellationToken.None);
+
+        second.Id.Should().Be(first.Id);
+        _acme.CreatedOrders.Should().HaveCount(ordersAfterFirst);
+        _repository.Certificates.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task IssueAsync_DifferentDomainOrder_SameSetIsReused()
+    {
+        SeedAcmeAccount();
+        _acme.Challenges =
+        [
+            new AcmeChallengeDescriptor("t-1", "http-01", "b.example.com", "ka-b", null, null),
+            new AcmeChallengeDescriptor("t-2", "http-01", "a.example.com", "ka-a", null, null),
+        ];
+        var first = await _manager.IssueAsync(new IssueCertificateRequest(
+            "First", ["b.example.com", "a.example.com"], "Http01", null), CancellationToken.None);
+
+        var second = await _manager.IssueAsync(new IssueCertificateRequest(
+            "Second", ["a.example.com", "b.example.com"], "Http01", null), CancellationToken.None);
+
+        second.Id.Should().Be(first.Id);
+        _repository.Certificates.Should().ContainSingle();
+    }
+
+    [Fact]
+    public async Task IssueAsync_WithExistingFailedDuplicate_DeletesItAndRepointsReferences()
+    {
+        SeedAcmeAccount();
+        var failed = new Certificate
+        {
+            Id = Guid.NewGuid(),
+            Name = "Old failed",
+            Domains = ["app.example.com"],
+            Provider = CertificateProvider.Acme,
+            Status = CertificateStatus.Failed,
+            LastRenewalError = "boom",
+            CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
+        };
+        _repository.Certificates.Add(failed);
+        var host = new ProxyHost
+        {
+            Id = Guid.NewGuid(),
+            Name = "App",
+            DomainNames = ["app.example.com"],
+            CertificateId = failed.Id,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        _hosts.Hosts.Add(host);
+        var redirect = new RedirectHost
+        {
+            Id = Guid.NewGuid(),
+            Name = "App redirect",
+            DomainNames = ["www.app.example.com"],
+            CertificateId = failed.Id,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        _redirects.Redirects.Add(redirect);
+        _acme.Challenges =
+        [
+            new AcmeChallengeDescriptor("token-5", "http-01", "app.example.com", "ka-5", null, null),
+        ];
+
+        var issued = await _manager.IssueAsync(new IssueCertificateRequest(
+            "Fresh", ["app.example.com"], "Http01", null), CancellationToken.None);
+
+        issued.Status.Should().Be(CertificateStatus.Issued);
+        _repository.Certificates.Should().ContainSingle().Which.Id.Should().Be(issued.Id);
+        _hosts.Hosts.Should().ContainSingle().Which.CertificateId.Should().Be(issued.Id);
+        _redirects.Redirects.Should().ContainSingle().Which.CertificateId.Should().Be(issued.Id);
+    }
+
+    [Fact]
+    public async Task UploadAsync_WithExistingSameDomains_SupersedesAndRepoints()
+    {
+        var old = new Certificate
+        {
+            Id = Guid.NewGuid(),
+            Name = "Old manual",
+            Domains = ["manual.example.com"],
+            Provider = CertificateProvider.Manual,
+            Status = CertificateStatus.Issued,
+            CreatedAt = DateTimeOffset.UtcNow.AddDays(-1),
+        };
+        _repository.Certificates.Add(old);
+        var host = new ProxyHost
+        {
+            Id = Guid.NewGuid(),
+            Name = "Manual app",
+            DomainNames = ["manual.example.com"],
+            CertificateId = old.Id,
+            CreatedAt = DateTimeOffset.UtcNow,
+        };
+        _hosts.Hosts.Add(host);
+        var (certPem, keyPem) = SelfSignedCertificate.Create("manual.example.com");
+
+        var uploaded = await _manager.UploadAsync(new UploadCertificateRequest(
+            "New manual", ["manual.example.com"], PfxBase64: null, PfxPassword: null,
+            CertificatePem: certPem, PrivateKeyPem: keyPem), CancellationToken.None);
+
+        _repository.Certificates.Should().ContainSingle().Which.Id.Should().Be(uploaded.Id);
+        _hosts.Hosts.Should().ContainSingle().Which.CertificateId.Should().Be(uploaded.Id);
     }
 
     [Fact]

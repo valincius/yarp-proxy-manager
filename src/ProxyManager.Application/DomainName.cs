@@ -43,6 +43,14 @@ public static partial class DomainName
 
     public static string Normalize(string domain) => domain.Trim().ToLowerInvariant();
 
+    /// <summary>Normalized, order-independent domain set (for equality checks such as certificate dedup).</summary>
+    public static string[] Set(IEnumerable<string> domains) =>
+        domains.Select(Normalize).Order(StringComparer.Ordinal).ToArray();
+
+    /// <summary>True when two domain collections cover the same normalized set (order/case-insensitive).</summary>
+    public static bool SameSet(IEnumerable<string> a, IEnumerable<string> b) =>
+        Set(a).SequenceEqual(Set(b));
+
     /// <summary>
     /// Returns true when two domains target the same hostnames (equal, or one is a wildcard covering the other).
     /// </summary>

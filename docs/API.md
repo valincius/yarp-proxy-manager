@@ -27,6 +27,8 @@ Keys are created and deleted from the admin UI (**API Keys** page) or via the AP
 | Access lists | `GET/POST /access-lists`, `GET/PUT/DELETE /access-lists/{id}` |
 | Streams (TCP/UDP) | `GET/POST /streams`, `GET/PUT/DELETE /streams/{id}`, `GET /streams/status` |
 | Certificates | `GET /certificates`, `POST /certificates/issue`, `POST /certificates/upload`, `POST /certificates/{id}/renew`, `DELETE /certificates/{id}` |
+
+**Certificate deduplication.** One certificate row is kept per normalized domain set. `POST /certificates/issue` is idempotent: if an `Issued`, unexpired certificate already covers exactly the requested domains, it is returned instead of creating a duplicate row or starting a new ACME order. After any successful issue/upload/renewal, other rows covering the same domains are automatically deleted and any proxy hosts / redirection hosts referencing them are re-pointed to the surviving certificate (so force-HTTPS keeps working). On startup the same sweep collapses duplicates left by earlier versions.
 | DNS credentials | `GET/POST /dns-credentials`, `DELETE /dns-credentials/{id}` |
 | ACME settings | `GET/PUT /acme-settings` |
 | Settings (404 page) | `GET/PUT /settings/not-found` — mode `Default`/`Empty`/`Custom`, `template` with `{{host}}`, `{{path}}`, `{{method}}`, `{{now}}` placeholders *(admin cookie only)* |

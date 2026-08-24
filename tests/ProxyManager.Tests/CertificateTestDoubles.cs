@@ -1,5 +1,7 @@
 using ProxyManager.Application;
 using ProxyManager.Application.Certificates;
+using ProxyManager.Application.ProxyHosts;
+using ProxyManager.Application.Redirects;
 using ProxyManager.Certificates.Acme;
 using ProxyManager.Domain;
 
@@ -38,6 +40,80 @@ public sealed class FakeDnsProviderFactory(FakeDnsChallengeProvider provider) : 
 public sealed class NoopReloadNotifier : IConfigReloadNotifier
 {
     public void Notify() { }
+}
+
+public sealed class InMemoryHostRepository : IProxyHostRepository
+{
+    public List<ProxyHost> Hosts { get; } = [];
+
+    public Task<IReadOnlyList<ProxyHost>> ListAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ProxyHost>>(Hosts.ToList());
+
+    public Task<ProxyHost?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Hosts.FirstOrDefault(h => h.Id == id));
+
+    public Task<ProxyHost?> FindByManagedSourceAsync(string source, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Hosts.FirstOrDefault(h => h.ManagedSource == source));
+
+    public Task<IReadOnlyList<ProxyHost>> ListManagedAsync(string managedBy, CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<ProxyHost>>(Hosts.Where(h => h.ManagedBy == managedBy).ToList());
+
+    public Task AddAsync(ProxyHost host, CancellationToken cancellationToken = default)
+    {
+        Hosts.Add(host);
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateAsync(ProxyHost host, CancellationToken cancellationToken = default)
+    {
+        var index = Hosts.FindIndex(h => h.Id == host.Id);
+        if (index >= 0)
+        {
+            Hosts[index] = host;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(ProxyHost host, CancellationToken cancellationToken = default)
+    {
+        Hosts.RemoveAll(h => h.Id == host.Id);
+        return Task.CompletedTask;
+    }
+}
+
+public sealed class InMemoryRedirectHostRepository : IRedirectHostRepository
+{
+    public List<RedirectHost> Redirects { get; } = [];
+
+    public Task<IReadOnlyList<RedirectHost>> ListAsync(CancellationToken cancellationToken = default) =>
+        Task.FromResult<IReadOnlyList<RedirectHost>>(Redirects.ToList());
+
+    public Task<RedirectHost?> GetAsync(Guid id, CancellationToken cancellationToken = default) =>
+        Task.FromResult(Redirects.FirstOrDefault(r => r.Id == id));
+
+    public Task AddAsync(RedirectHost redirect, CancellationToken cancellationToken = default)
+    {
+        Redirects.Add(redirect);
+        return Task.CompletedTask;
+    }
+
+    public Task UpdateAsync(RedirectHost redirect, CancellationToken cancellationToken = default)
+    {
+        var index = Redirects.FindIndex(r => r.Id == redirect.Id);
+        if (index >= 0)
+        {
+            Redirects[index] = redirect;
+        }
+
+        return Task.CompletedTask;
+    }
+
+    public Task DeleteAsync(RedirectHost redirect, CancellationToken cancellationToken = default)
+    {
+        Redirects.RemoveAll(r => r.Id == redirect.Id);
+        return Task.CompletedTask;
+    }
 }
 
 public sealed class FakeAcmeClient : IAcmeClient
