@@ -44,7 +44,6 @@ export default function Certificates() {
   const data = createMemo(() => loadCertificates());
   const [showIssue, setShowIssue] = createSignal(false);
   const [showUpload, setShowUpload] = createSignal(false);
-  const [showCredential, setShowCredential] = createSignal(false);
   const [viewing, setViewing] = createSignal<CertificateDto | null>(null);
 
   return (
@@ -76,10 +75,6 @@ export default function Certificates() {
         <UploadSection onDone={() => setShowUpload(false)} />
       </Modal>
 
-      <Modal open={showCredential()} title="Add DNS credential" onClose={() => setShowCredential(false)}>
-        <CredentialForm onDone={() => setShowCredential(false)} />
-      </Modal>
-
       <Modal
         open={viewing() !== null}
         title={viewing() ? `Certificate: ${viewing()!.name}` : ''}
@@ -89,13 +84,11 @@ export default function Certificates() {
         <CertificateDetail certificate={viewing()} onClose={() => setViewing(null)} />
       </Modal>
 
-      <CredentialsSection credentials={data().credentials} onAdd={() => setShowCredential(true)} />
-
       <div>
         <div class="mb-3 flex items-center justify-between">
           <h2 class="text-lg font-medium text-slate-800">Certificates</h2>
           <span class="text-xs text-slate-500">
-            ACME account settings live on the{' '}
+            ACME account settings and DNS credentials live on the{' '}
             <a href="/admin/settings" class="text-blue-600 hover:text-blue-700">
               Settings
             </a>{' '}
@@ -379,12 +372,25 @@ function IssueSection(props: { credentials: DnsCredentialDto[]; onDone: () => vo
         <Show when={challengeType() === 'Dns01'}>
           <label class="block">
             <span class="text-sm font-medium text-slate-700">DNS credential</span>
-            <select class={inputClass} value={dnsCredentialId()} onChange={(e) => setDnsCredentialId(e.currentTarget.value)} required>
-              <option value="">Select credential…</option>
-              <For each={props.credentials}>
-                {(credential) => <option value={credential.id}>{credential.name} ({credential.provider})</option>}
-              </For>
-            </select>
+            <Show
+              when={props.credentials.length > 0}
+              fallback={
+                <p class="mt-1 rounded-md border border-amber-200 bg-amber-50 p-2 text-xs text-amber-800">
+                  No DNS credentials yet. Add one on the{' '}
+                  <a href="/admin/settings#dns-credentials" class="font-medium underline hover:text-amber-900">
+                    Settings
+                  </a>{' '}
+                  page to use DNS-01.
+                </p>
+              }
+            >
+              <select class={inputClass} value={dnsCredentialId()} onChange={(e) => setDnsCredentialId(e.currentTarget.value)} required>
+                <option value="">Select credential…</option>
+                <For each={props.credentials}>
+                  {(credential) => <option value={credential.id}>{credential.name} ({credential.provider})</option>}
+                </For>
+              </select>
+            </Show>
           </label>
         </Show>
       </div>
@@ -489,97 +495,6 @@ function UploadSection(props: { onDone: () => void }) {
           class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
         >
           {busy() ? 'Uploading…' : 'Upload certificate'}
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function CredentialsSection(props: { credentials: DnsCredentialDto[]; onAdd: () => void }) {
-  async function remove(credential: DnsCredentialDto) {
-    if (!confirm(`Delete DNS credential "${credential.name}"?`)) {
-      return;
-    }
-    await api.del(`/dns-credentials/${credential.id}`);
-    revalidate('certificates');
-  }
-
-  return (
-    <section class="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
-      <div class="mb-4 flex items-center justify-between">
-        <h2 class="text-lg font-medium text-slate-800">DNS credentials (DNS-01)</h2>
-        <button
-          class="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50"
-          onClick={props.onAdd}
-        >
-          + Add credential
-        </button>
-      </div>
-      <Show when={props.credentials.length > 0} fallback={<p class="text-sm text-slate-500">No DNS credentials yet.</p>}>
-        <ul class="divide-y divide-slate-100 text-sm">
-          <For each={props.credentials}>
-            {(credential) => (
-              <li class="flex items-center justify-between py-2">
-                <span class="text-slate-700">
-                  {credential.name} <span class="text-xs text-slate-400">({credential.provider})</span>
-                </span>
-                <button class="text-xs font-medium text-red-600 hover:text-red-700" onClick={() => void remove(credential)}>
-                  Delete
-                </button>
-              </li>
-            )}
-          </For>
-        </ul>
-      </Show>
-    </section>
-  );
-}
-
-function CredentialForm(props: { onDone: () => void }) {
-  const [name, setName] = createSignal('');
-  const [token, setToken] = createSignal('');
-  const [busy, setBusy] = createSignal(false);
-  const [error, setError] = createSignal<string[] | null>(null);
-
-  async function add(event: SubmitEvent) {
-    event.preventDefault();
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post('/dns-credentials', { name: name(), apiToken: token() });
-      revalidate('certificates');
-      props.onDone();
-    } catch (e) {
-      setError(toMessages(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  return (
-    <form class="space-y-4" onSubmit={add}>
-      <ErrorBanner messages={error()} />
-      <label class="block">
-        <span class="text-sm font-medium text-slate-700">Name</span>
-        <input class={inputClass} value={name()} onInput={(e) => setName(e.currentTarget.value)} placeholder="Cloudflare" required />
-      </label>
-      <label class="block">
-        <span class="text-sm font-medium text-slate-700">API token</span>
-        <input type="password" class={inputClass} value={token()} onInput={(e) => setToken(e.currentTarget.value)} placeholder="Cloudflare API token" required />
-        <span class="mt-1 block text-xs text-slate-500">
-          Used to publish TXT records for DNS-01 challenges. Stored encrypted with the app's Data Protection keys.
-        </span>
-      </label>
-      <div class="flex items-center gap-3 pt-2">
-        <button
-          type="submit"
-          disabled={busy()}
-          class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700 disabled:opacity-50"
-        >
-          {busy() ? 'Adding…' : 'Add credential'}
-        </button>
-        <button type="button" class="text-sm font-medium text-slate-600 hover:text-slate-900" onClick={props.onDone}>
-          Cancel
         </button>
       </div>
     </form>

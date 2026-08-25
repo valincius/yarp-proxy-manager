@@ -3,6 +3,7 @@ import { query, revalidate } from '@solidjs/router';
 import { createMemo, For, Show } from 'solid-js';
 import { api } from '../../../lib/api';
 import { StatusBadge } from '../../../components/StatusBadge';
+import { DeleteButton, EditButton, PowerButton } from '../../../components/ActionButtons';
 import type { ProxyHost } from '../../../lib/types';
 
 const loadHosts = query(async (): Promise<ProxyHost[]> => api.get('/hosts'), 'hosts-list');
@@ -62,25 +63,10 @@ export default function Hosts() {
                     <StatusBadge enabled={host.enabled} />
                   </td>
                   <td class="px-4 py-3">
-                    <div class="flex items-center justify-end gap-2">
-                      <button
-                        class="text-xs font-medium text-slate-600 hover:text-slate-900"
-                        onClick={() => void toggle(host)}
-                      >
-                        {host.enabled ? 'Disable' : 'Enable'}
-                      </button>
-                      <a
-                        href={`/admin/hosts/${host.id}`}
-                        class="text-xs font-medium text-blue-600 hover:text-blue-700"
-                      >
-                        Edit
-                      </a>
-                      <button
-                        class="text-xs font-medium text-red-600 hover:text-red-700"
-                        onClick={() => void remove(host)}
-                      >
-                        Delete
-                      </button>
+                    <div class="flex items-center justify-end gap-1">
+                      <PowerButton enabled={host.enabled} onClick={() => void toggle(host)} />
+                      <EditButton href={`/admin/hosts/${host.id}`} />
+                      <DeleteButton onClick={() => void remove(host)} />
                     </div>
                   </td>
                 </tr>

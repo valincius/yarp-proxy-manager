@@ -123,6 +123,7 @@ export default function HostForm(props: HostFormProps) {
   const [healthCheckInterval, setHealthCheckInterval] = createSignal(props.initial?.healthCheckIntervalSeconds ?? 10);
   const certificates = createMemo(() => loadCertificates());
   const accessLists = createMemo(() => loadAccessLists());
+  const dnsCredentials = createMemo(() => loadDnsCredentials());
   const [busy, setBusy] = createSignal(false);
   const [error, setError] = createSignal<string[] | null>(null);
 

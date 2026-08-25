@@ -63,21 +63,9 @@ declare module "virtual:file-routes" {
       $$route?: undefined;
     },
     {
-      path: "/admin/api-keys";
-      page: true;
-      $component: FileRouteLazyRef<typeof import("./src/routes/admin/api-keys")>;
-      $$route?: undefined;
-    },
-    {
       path: "/admin/audit";
       page: true;
       $component: FileRouteLazyRef<typeof import("./src/routes/admin/audit")>;
-      $$route?: undefined;
-    },
-    {
-      path: "/admin/backup";
-      page: true;
-      $component: FileRouteLazyRef<typeof import("./src/routes/admin/backup")>;
       $$route?: undefined;
     },
     {
@@ -193,14 +181,6 @@ declare module "virtual:file-routes" {
           children?: undefined;
         },
         {
-          path: "/backup";
-          id: "/backup";
-          page: true;
-          $component: FileRouteLazyRef<typeof import("./src/routes/admin/backup")>;
-          $$route?: undefined;
-          children?: undefined;
-        },
-        {
           path: "/hosts/";
           id: "/hosts/";
           page: true;
@@ -213,14 +193,6 @@ declare module "virtual:file-routes" {
           id: "/streams";
           page: true;
           $component: FileRouteLazyRef<typeof import("./src/routes/admin/streams")>;
-          $$route?: undefined;
-          children?: undefined;
-        },
-        {
-          path: "/api-keys";
-          id: "/api-keys";
-          page: true;
-          $component: FileRouteLazyRef<typeof import("./src/routes/admin/api-keys")>;
           $$route?: undefined;
           children?: undefined;
         },
