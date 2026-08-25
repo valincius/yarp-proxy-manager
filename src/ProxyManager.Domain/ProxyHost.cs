@@ -23,17 +23,11 @@ public sealed class ProxyHost
 
     public int ForwardPort { get; set; } = 80;
 
-    /// <summary>UI parity flag. YARP handles WebSocket upgrades natively, so this is stored but not
-    /// otherwise consulted by the proxy pipeline.</summary>
-    public bool WebSocketsEnabled { get; set; } = true;
-
     /// <summary>When enabled, requests matching common exploit patterns are rejected (Phase 3 middleware).</summary>
     public bool BlockCommonExploits { get; set; } = true;
 
     /// <summary>When set (requires a certificate), HTTP requests are 301-redirected to HTTPS.</summary>
     public bool ForceHttps { get; set; }
-
-    public bool Http2Support { get; set; } = true;
 
     public Guid? CertificateId { get; set; }
 

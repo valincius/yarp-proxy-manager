@@ -95,10 +95,8 @@ export default function HostForm(props: HostFormProps) {
   const [scheme, setScheme] = createSignal(props.initial?.scheme ?? 'http');
   const [forwardHost, setForwardHost] = createSignal(props.initial?.forwardHost ?? '');
   const [forwardPort, setForwardPort] = createSignal(props.initial?.forwardPort ?? 80);
-  const [webSockets, setWebSockets] = createSignal(props.initial?.webSocketsEnabled ?? true);
   const [blockExploits, setBlockExploits] = createSignal(props.initial?.blockCommonExploits ?? true);
   const [forceHttps, setForceHttps] = createSignal(props.initial?.forceHttps ?? false);
-  const [http2, setHttp2] = createSignal(props.initial?.http2Support ?? true);
   const [certificateId, setCertificateId] = createSignal(props.initial?.certificateId ?? '');
   const [accessListId, setAccessListId] = createSignal(props.initial?.accessListId ?? '');
   const [requestHeaders, setRequestHeaders] = createSignal<ProxyHeaderInput[]>(
@@ -165,10 +163,8 @@ export default function HostForm(props: HostFormProps) {
       scheme: scheme() as 'http' | 'https',
       forwardHost: forwardHost(),
       forwardPort: Number(forwardPort()),
-      webSocketsEnabled: webSockets(),
       blockCommonExploits: blockExploits(),
       forceHttps: forceHttps(),
-      http2Support: http2(),
       certificateId: certificateId() || null,
       accessListId: accessListId() || null,
       requestHeaders: requestHeaders().filter((h) => h.name.trim().length > 0),
@@ -311,10 +307,8 @@ export default function HostForm(props: HostFormProps) {
 
         <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Toggle label="Enabled" checked={enabled()} onChange={setEnabled} />
-          <Toggle label="WebSockets" checked={webSockets()} onChange={setWebSockets} />
           <Toggle label="Block Common Exploits" checked={blockExploits()} onChange={setBlockExploits} />
           <Toggle label="Force HTTPS (requires a certificate)" checked={forceHttps()} onChange={setForceHttps} />
-          <Toggle label="HTTP/2" checked={http2()} onChange={setHttp2} />
         </div>
 
         <HeaderEditor title="Custom Request Headers" headers={requestHeaders} setHeaders={setRequestHeaders} />

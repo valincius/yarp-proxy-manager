@@ -35,18 +35,22 @@ Keys are created and deleted from the admin UI (**API Keys** page) or via the AP
 | Settings (Docker) | `GET/PUT /settings/docker`, `POST /settings/docker/sync` *(admin cookie only)* |
 | Health | `GET /health` (routes/clusters in memory) |
 | Audit log | `GET /audit?limit=100&entityType=…` |
-| Auth | `POST /auth/login`, `POST /auth/logout`, `GET /auth/session`, `GET /auth/antiforgery` |
-| Backup/restore | `GET /backup`, `POST /backup/restore` *(admin cookie only)* |
+| Auth | `GET /auth/setup-status`, `POST /auth/setup`, `POST /auth/login`, `POST /auth/logout`, `GET /auth/session`, `GET /auth/antiforgery` |
+| Backup/restore | `GET /backup`, `POST /backup/validate`, `POST /backup/restore` *(admin cookie only; exports carry `schemaVersion`)* |
 | Users | `GET/POST /users`, `PATCH /users/{id}/enable`, `DELETE /users/{id}` *(admin cookie only)* |
 | API keys | see above *(admin cookie only)* |
 
 ## Quick start
 
 ```bash
-# 1. Create a key (cookie session). curl with a saved cookie jar:
+# 1. Create the first administrator (new installs only), then log in with a saved cookie jar:
+curl -c jar -b jar -X POST http://localhost:5081/api/v1/auth/setup \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"admin@example.com","password":"choose-a-password"}'
+
 curl -c jar -b jar -X POST http://localhost:5081/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"email":"admin@example.com","password":"changeme"}'
+  -d '{"email":"admin@example.com","password":"choose-a-password"}'
 
 curl -c jar -b jar -X POST http://localhost:5081/api/v1/api-keys \
   -H 'Content-Type: application/json' \
@@ -66,10 +70,8 @@ curl -X POST http://localhost:5081/api/v1/hosts \
     "scheme": "http",
     "forwardHost": "10.0.0.25",
     "forwardPort": 8080,
-    "webSocketsEnabled": true,
     "blockCommonExploits": true,
     "forceHttps": false,
-    "http2Support": true,
     "certificateId": null,
     "accessListId": null,
     "requestHeaders": [],

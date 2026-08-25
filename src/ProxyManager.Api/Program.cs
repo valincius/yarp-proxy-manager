@@ -77,7 +77,7 @@ public partial class Program
         builder.Services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
             {
-                options.Password.RequiredLength = 5;
+                options.Password.RequiredLength = 8;
                 options.Password.RequireDigit = false;
                 options.Password.RequireLowercase = false;
                 options.Password.RequireUppercase = false;
@@ -446,13 +446,19 @@ public partial class Program
         var configuration = services.GetRequiredService<IConfiguration>();
         var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var email = configuration["Admin:Email"] ?? "admin@example.com";
+        var email = configuration["Admin:Email"];
+        var configuredPassword = configuration["Admin:Password"];
+        if (string.IsNullOrWhiteSpace(email) || string.IsNullOrWhiteSpace(configuredPassword))
+        {
+            // Interactive first-run setup creates the first administrator through AuthController.
+            return;
+        }
+
         if (await userManager.FindByEmailAsync(email) is not null)
         {
             return;
         }
 
-        var password = configuration["Admin:Password"] ?? "changeme";
         var user = new ApplicationUser
         {
             UserName = email,
@@ -461,22 +467,12 @@ public partial class Program
             EmailConfirmed = true,
         };
 
-        var result = await userManager.CreateAsync(user, password);
+        var result = await userManager.CreateAsync(user, configuredPassword);
         var logger = services.GetRequiredService<ILoggerFactory>().CreateLogger("Seed");
         if (result.Succeeded)
         {
             await userManager.AddToRoleAsync(user, "Admin");
-            if (configuration["Admin:Password"] is null)
-            {
-                logger.LogWarning(
-                    "Created the default admin account '{Email}' with the default password. " +
-                    "Set the Admin:Password configuration value (ADMIN_PASSWORD) and change it immediately.",
-                    email);
-            }
-            else
-            {
-                logger.LogInformation("Created the admin account '{Email}'.", email);
-            }
+            logger.LogInformation("Created the admin account '{Email}' from explicit configuration.", email);
         }
         else
         {

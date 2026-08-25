@@ -5,11 +5,15 @@
 #
 # Usage:
 #   bash scripts/server-debug.sh [admin-email] [admin-password]
-#   (defaults: admin@example.com / changeme — pass yours if you changed them)
+#   (email defaults to admin@example.com; pass the password explicitly or set YARP_PASSWORD)
 set -u
 
 EMAIL="${1:-admin@example.com}"
-PASS="${2:-changeme}"
+PASS="${2:-${YARP_PASSWORD:-}}"
+if [ -z "$PASS" ]; then
+  read -r -s -p "Admin password: " PASS
+  echo
+fi
 ADMIN_PORT=81
 COMPOSE="docker-compose.yml"
 

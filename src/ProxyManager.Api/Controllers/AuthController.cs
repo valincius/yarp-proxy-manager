@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authorization;
@@ -15,6 +16,58 @@ public sealed class AuthController(
     UserManager<ApplicationUser> userManager,
     IAntiforgery antiforgery) : ControllerBase
 {
+    private static readonly SemaphoreSlim SetupGate = new(1, 1);
+
+    [HttpGet("setup-status")]
+    [AllowAnonymous]
+    public IActionResult SetupStatus()
+        => Ok(new { setup = !userManager.Users.Any() });
+
+    [HttpPost("setup")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Setup(SetupRequest request)
+    {
+        await SetupGate.WaitAsync(HttpContext.RequestAborted);
+        try
+        {
+            if (userManager.Users.Any())
+            {
+                return Conflict(new { error = "Initial setup has already been completed." });
+            }
+
+            if (string.IsNullOrWhiteSpace(request.Email)
+                || !new EmailAddressAttribute().IsValid(request.Email)
+                || string.IsNullOrWhiteSpace(request.Password)
+                || request.Password.Length < 8)
+            {
+                return BadRequest(new { error = "Provide a valid email and a password of at least 8 characters." });
+            }
+
+            var user = new ApplicationUser
+            {
+                UserName = request.Email.Trim(),
+                Email = request.Email.Trim(),
+                DisplayName = string.IsNullOrWhiteSpace(request.DisplayName)
+                    ? request.Email.Split('@')[0]
+                    : request.DisplayName.Trim(),
+                EmailConfirmed = true,
+            };
+            var result = await userManager.CreateAsync(user, request.Password);
+            if (!result.Succeeded)
+            {
+                return BadRequest(new { error = string.Join("; ", result.Errors.Select(e => e.Description)) });
+            }
+
+            await userManager.AddToRoleAsync(user, "Admin");
+            await signInManager.SignInAsync(user, isPersistent: true);
+            return Ok(SessionPayload(user, ["Admin"]));
+        }
+        finally
+        {
+            SetupGate.Release();
+        }
+    }
+
     [HttpPost("login")]
     [AllowAnonymous]
     public async Task<IActionResult> Login(LoginRequest request)
@@ -119,15 +172,17 @@ public sealed class AuthController(
             return new { authenticated = false };
         }
 
-        var roles = await userManager.GetRolesAsync(user);
-        return new
-        {
-            authenticated = true,
-            email = user.Email,
-            displayName = user.DisplayName,
-            roles,
-        };
+        return SessionPayload(user, await userManager.GetRolesAsync(user));
     }
+
+    private static object SessionPayload(ApplicationUser user, IEnumerable<string> roles) => new
+    {
+        authenticated = true,
+        email = user.Email,
+        displayName = user.DisplayName,
+        roles,
+    };
 }
 
 public sealed record LoginRequest(string Email, string Password);
+public sealed record SetupRequest(string Email, string Password, string? DisplayName);

@@ -7,7 +7,7 @@ on:
 
 jobs:
   backend:
-    name: Backend (dotnet build + test)
+    name: Backend (dotnet build + test + coverage)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,11 +18,20 @@ jobs:
         run: dotnet restore ProxyManager.slnx
       - name: Build
         run: dotnet build ProxyManager.slnx --no-restore -c Release
-      - name: Test
-        run: dotnet test ProxyManager.slnx --no-build -c Release
+      - name: Install coverage tool
+        run: dotnet tool install --global dotnet-coverage
+      - name: Test + coverage
+        run: |
+          mkdir -p coverage
+          dotnet-coverage collect "dotnet test ProxyManager.slnx --no-build -c Release --logger trx" -f cobertura -o coverage/backend.cobertura.xml
+      - name: Upload backend coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: coverage/backend.cobertura.xml
 
   frontend:
-    name: Frontend (pnpm test + build)
+    name: Frontend (pnpm test + build + coverage)
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -41,7 +50,12 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Typecheck
         run: pnpm typecheck
-      - name: Test
-        run: pnpm test -- --run
+      - name: Test + coverage
+        run: pnpm test:coverage
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: frontend-coverage
+          path: web/coverage
       - name: Build
         run: pnpm build

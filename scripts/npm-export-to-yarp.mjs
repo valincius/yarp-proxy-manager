@@ -31,7 +31,7 @@
  *   $env:NPM_TOKEN = "eyJhbGciOi..."
  *   node scripts/npm-export-to-yarp.mjs
  *   node scripts/npm-export-to-yarp.mjs --token $env:NPM_TOKEN --out backup.json
- *   node scripts/npm-export-to-yarp.mjs --import-url http://127.0.0.1:5081 --import-email admin@example.com --import-password changeme
+ *   node scripts/npm-export-to-yarp.mjs --import-url http://127.0.0.1:5081 --import-email admin@example.com --import-password "$env:YARP_PASSWORD"
  *
  * Mapping notes (also written to the report):
  *   - Certificates are NOT transferred: the NPM API never exposes private keys and the
@@ -209,7 +209,9 @@ for (const h of npmProxyHosts) {
 
   for (const [k, label] of [['advanced_config', 'host advanced_config'],
     ['caching_enabled', 'host caching_enabled'], ['hsts_enabled', 'host hsts_enabled'],
-    ['hsts_subdomains', 'host hsts_subdomains']]) {
+    ['hsts_subdomains', 'host hsts_subdomains'],
+    ['allow_websocket_upgrade', 'host allow_websocket_upgrade'],
+    ['http2_support', 'host http2_support']]) {
     if (h[k] !== undefined && h[k] !== '' && h[k] !== 0 && h[k] !== false) skippedFields.add(label);
   }
 
@@ -221,10 +223,8 @@ for (const h of npmProxyHosts) {
     scheme: h.forward_scheme === 'https' ? 'https' : 'http',
     forwardHost: String(h.forward_host ?? ''),
     forwardPort: Number(h.forward_port) || 80,
-    webSocketsEnabled: toBool(h.allow_websocket_upgrade),
     blockCommonExploits: toBool(h.block_exploits),
     forceHttps: toBool(h.ssl_forced),
-    http2Support: toBool(h.http2_support),
     certificateId: null, // NPM certs are not exportable via the API
     accessListId: mapAccessListId(h.access_list_id),
     requestHeaders: [],
@@ -311,6 +311,7 @@ for (const s of npmStreams) {
 // --------------------------------------------------------------------- output
 const exportedAt = new Date().toISOString().replace(/\.\d{3}Z$/, '+00:00');
 const payload = {
+  schemaVersion: 1,
   exportedAt,
   hosts,
   redirects,
@@ -465,7 +466,19 @@ async function importToYarp(payload) {
   const refreshed = await res.json();
   if (refreshed?.token) token = refreshed.token;
 
-  // 4. Restore.
+  // 4. Validate, then restore. The API validates again inside its transaction.
+  res = await fetch(`${base}/api/v1/backup/validate`, {
+    method: 'POST',
+    headers: { ...jsonHeader, Cookie: cookieHeader(), 'X-XSRF-TOKEN': token },
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(60000),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`POST /api/v1/backup/validate -> ${res.status}: ${body.slice(0, 300)}`);
+  }
+
+  // 5. Restore.
   res = await fetch(`${base}/api/v1/backup/restore`, {
     method: 'POST',
     headers: { ...jsonHeader, Cookie: cookieHeader(), 'X-XSRF-TOKEN': token },

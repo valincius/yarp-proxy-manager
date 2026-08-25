@@ -26,11 +26,14 @@ services:
   # Optional third candidate. Nginx Proxy Manager is nginx under the hood with a
   # management layer; enable with `--profile npm` (first run pulls ~1GB).
   npm:
-    image: jc21/nginx-proxy-manager:latest
+    image: jc21/nginx-proxy-manager:2.15.1
     container_name: bench-npm
     profiles: ["npm"]
     environment:
       DB_SQLITE_FILE: "/data/database.sqlite"
+      INITIAL_ADMIN_EMAIL: "admin@example.com"
+      INITIAL_ADMIN_PASSWORD: "benchmark"
+      DISABLE_IPV6: "true"
     volumes:
       - npm-data:/data
     ports:

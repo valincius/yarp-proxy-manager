@@ -66,7 +66,7 @@ public static class TestApi
     {
         var xsrf = await GetXsrfTokenAsync(client);
         client.DefaultRequestHeaders.Add("X-XSRF-TOKEN", xsrf);
-        var response = await client.PostAsJsonAsync("/api/v1/auth/login", new { email = "admin@example.com", password = "admin" });
+        var response = await client.PostAsJsonAsync("/api/v1/auth/login", new { email = "admin@example.com", password = "admin1234" });
         response.EnsureSuccessStatusCode();
 
         var rotated = await GetXsrfTokenAsync(client);
@@ -90,5 +90,5 @@ public static class TestApi
 
     public static ProxyHostInput ValidHostInput(string domain = "app.example.com", string forwardHost = "127.0.0.1") =>
         new("Test host", [domain], true, "http", forwardHost, 8080,
-            true, true, false, true, null, null, [], [], [], [], null, false, null, 10);
+            true, false, null, null, [], [], [], [], null, false, null, 10);
 }

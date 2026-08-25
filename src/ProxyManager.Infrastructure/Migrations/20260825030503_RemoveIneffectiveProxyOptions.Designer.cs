@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using ProxyManager.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using ProxyManager.Infrastructure.Persistence;
 namespace ProxyManager.Infrastructure.Migrations
 {
     [DbContext(typeof(ProxyDbContext))]
-    partial class ProxyDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260825030503_RemoveIneffectiveProxyOptions")]
+    partial class RemoveIneffectiveProxyOptions
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.11");

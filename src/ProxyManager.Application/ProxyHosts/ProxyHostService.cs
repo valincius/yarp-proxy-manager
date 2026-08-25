@@ -155,10 +155,8 @@ public sealed class ProxyHostService
         host.Scheme = input.Scheme.ToLowerInvariant();
         host.ForwardHost = input.ForwardHost.Trim();
         host.ForwardPort = input.ForwardPort;
-        host.WebSocketsEnabled = input.WebSocketsEnabled;
         host.BlockCommonExploits = input.BlockCommonExploits;
         host.ForceHttps = input.ForceHttps;
-        host.Http2Support = input.Http2Support;
         host.CertificateId = input.CertificateId;
         host.AccessListId = input.AccessListId;
 

@@ -10,7 +10,7 @@ public sealed class ProxyHostValidatorTests
 
     private static ProxyHostInput Valid() =>
         new("Test host", ["app.example.com"], true, "http", "10.0.0.1", 8080,
-            true, true, false, true, null, null, [], [], [], [], null, false, null, 10);
+            true, false, null, null, [], [], [], [], null, false, null, 10);
 
     [Fact]
     public void ValidInput_Passes()

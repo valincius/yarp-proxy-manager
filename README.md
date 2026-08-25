@@ -21,7 +21,7 @@ A self-hosted, database-backed reverse proxy manager in the spirit of Nginx Prox
 cd docker && docker compose up -d
 ```
 
-The container owns port 80 (reverse proxy) and 81 (admin UI/API); the data volume at `./data` holds the SQLite database, certificates, Data Protection keys and logs. The default admin account is `admin@example.com` / `changeme` — **set `Admin__Password` (or `ADMIN_PASSWORD`) before first boot** and change it immediately.
+The container owns port 80 (reverse proxy) and 81 (admin UI/API); the data volume at `./data` holds the SQLite database, certificates, Data Protection keys and logs. On a new install, open the admin UI and create the first administrator. For unattended deployments, set both `Admin__Email` and `Admin__Password` before first boot; the application will not create a built-in default account.
 
 Example flow:
 
@@ -118,4 +118,3 @@ Live traffic statistics are available in-app (**Admin → Diagnostics**): per-ho
 ```bash
 cd docker && docker compose -f docker-compose.yml -f docker-compose.observability.yml up -d
 ```
-

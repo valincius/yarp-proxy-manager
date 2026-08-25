@@ -7,11 +7,18 @@ export const options = {
   vus: __ENV.VUS ? Number(__ENV.VUS) : 50,
   duration: __ENV.DURATION || '30s',
   summaryTrendStats: ['avg', 'min', 'med', 'p(90)', 'p(95)', 'max'],
+  thresholds: {
+    checks: ['rate==1'],
+    http_req_failed: ['rate==0'],
+  },
 };
 
 export default function () {
   const target = __ENV.TARGET || 'http://nginx/hello';
   const params = __ENV.HOST ? { headers: { Host: __ENV.HOST } } : {};
   const res = http.get(target, params);
-  check(res, { 'status 200': (r) => r.status === 200 });
+  check(res, {
+    'status 200': (r) => r.status === 200,
+    'expected upstream body': (r) => r.body.includes('benchmark-upstream'),
+  });
 }

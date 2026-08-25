@@ -16,7 +16,7 @@ track the Nginx column with some overhead.
 
 | Service | What runs | Route |
 |---------|-----------|-------|
-| `upstream` | nginx:alpine returning `hello` on every path | — |
+| `upstream` | nginx:alpine returning a unique `benchmark-upstream` body | — |
 | `yarp` | this project (YARP + the manager's middleware stack, built image) | `yarp.local` → upstream |
 | `nginx` | plain nginx, worker/event tuning from the article | `/hello` → upstream |
 | `npm` (optional) | jc21/nginx-proxy-manager | `/hello` → upstream |
@@ -40,7 +40,10 @@ docker compose -f ../docker/docker-compose.yml build
 ./run.ps1 -IncludeNpm
 ```
 
-Results print to the console and are saved to `benchmarks/results.csv`.
+Results print to the console and are saved to `benchmarks/results.csv`. Each run
+also fails if any request is not HTTP 200, contains the expected upstream body,
+or records an HTTP transport error; this prevents a proxy returning its admin
+page or an error response from being reported as throughput.
 
 ## Sample results (2026-08-19, Docker Desktop for Windows, 30s per run)
 

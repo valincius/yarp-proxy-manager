@@ -11,6 +11,7 @@ param(
 $ErrorActionPreference = 'Continue'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $here
+New-Item -ItemType Directory -Force -Path "$here/k6/out" | Out-Null
 
 function Invoke-Docker {
     & docker @args 2>&1 | Out-Null
@@ -45,8 +46,8 @@ $existingHosts = (Invoke-WebRequest -Uri "http://127.0.0.1:18081/api/v1/hosts" -
 if (-not ($existingHosts | Where-Object { $_.name -eq 'bench' })) {
     $hostBody = @{
         name = 'bench'; domainNames = @('yarp.local'); enabled = $true; scheme = 'http'
-        forwardHost = 'upstream'; forwardPort = 80; webSocketsEnabled = $true
-        blockCommonExploits = $true; forceHttps = $false; http2Support = $true
+        forwardHost = 'upstream'; forwardPort = 80
+        blockCommonExploits = $true; forceHttps = $false
         certificateId = $null; accessListId = $null; requestHeaders = @(); responseHeaders = @()
         locations = @(); destinations = @(); loadBalancingPolicy = $null
         healthCheckEnabled = $false; healthCheckPath = $null; healthCheckIntervalSeconds = 10
@@ -55,9 +56,39 @@ if (-not ($existingHosts | Where-Object { $_.name -eq 'bench' })) {
 }
 Write-Host "    YARP host 'bench' configured (yarp.local -> upstream:80)"
 
+if ($IncludeNpm) {
+    Write-Host "==> Waiting for NPM"
+    $npmReady = $false
+    for ($i = 0; $i -lt 90; $i++) {
+        Start-Sleep -Seconds 2
+        try {
+            $health = Invoke-WebRequest -Uri "http://127.0.0.1:18083/api/" -UseBasicParsing -TimeoutSec 3
+            if ($health.StatusCode -ge 200 -and $health.StatusCode -lt 500) { $npmReady = $true; break }
+        } catch { }
+    }
+    if (-not $npmReady) { throw "NPM did not become ready" }
+
+    $npmLogin = @{ identity = 'admin@example.com'; secret = 'benchmark' } | ConvertTo-Json
+    $npmToken = (Invoke-WebRequest -Uri "http://127.0.0.1:18083/api/tokens" -Method Post -Body $npmLogin -ContentType 'application/json' -UseBasicParsing).Content | ConvertFrom-Json
+    $npmHeaders = @{ Authorization = "Bearer $($npmToken.token)" }
+    $npmHosts = (Invoke-WebRequest -Uri "http://127.0.0.1:18083/api/nginx/proxy-hosts" -Headers $npmHeaders -UseBasicParsing).Content | ConvertFrom-Json
+    if (-not ($npmHosts | Where-Object { $_.domain_names -contains 'npm.local' })) {
+        $npmBody = @{
+            domain_names = @('npm.local'); forward_scheme = 'http'; forward_host = 'upstream'; forward_port = 80
+            access_list_id = 0; certificate_id = 0; ssl_forced = $false; caching_enabled = $false
+            block_exploits = $false; allow_websocket_upgrade = $true; http2_support = $true
+            hsts_enabled = $false; hsts_subdomains = $false; enabled = $true
+            meta = @{}; locations = @(); advanced_config = ''
+        } | ConvertTo-Json -Depth 10
+        Invoke-WebRequest -Uri "http://127.0.0.1:18083/api/nginx/proxy-hosts" -Method Post -Body $npmBody -ContentType 'application/json' -Headers $npmHeaders -UseBasicParsing | Out-Null
+    }
+    Write-Host "    NPM host configured (npm.local -> upstream:80)"
+}
+
 # Warm up
 Invoke-WebRequest -Uri "http://127.0.0.1:18080/hello" -Headers @{ Host = 'yarp.local' } -UseBasicParsing -TimeoutSec 5 | Out-Null
 Invoke-WebRequest -Uri "http://127.0.0.1:18082/hello" -UseBasicParsing -TimeoutSec 5 | Out-Null
+if ($IncludeNpm) { Invoke-WebRequest -Uri "http://127.0.0.1:18083/hello" -Headers @{ Host = 'npm.local' } -UseBasicParsing -TimeoutSec 5 | Out-Null }
 Start-Sleep -Seconds 2
 
 $targets = @(
@@ -65,7 +96,7 @@ $targets = @(
     @{ Name = 'Nginx';   Target = 'http://nginx:80/hello';   Host = $null }
 )
 if ($IncludeNpm) {
-    $targets += @{ Name = 'NPM'; Target = 'http://npm:80/hello'; Host = $null }
+    $targets += @{ Name = 'NPM'; Target = 'http://npm:80/hello'; Host = 'npm.local' }
 }
 
 $vus = @(10, 50, 100, 200)
@@ -80,6 +111,7 @@ foreach ($vu in $vus) {
         if ($t.Host) { $envArgs += "-e", "HOST=$($t.Host)" }
         $envArgs += '--vus', "$vu", '--duration', "${DurationSec}s", '--summary-export', "/scripts/out/$($t.Name.ToLower())-$vu.json", '/scripts/script.js'
         & docker $envArgs 2>&1 | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "k6 failed for $($t.Name) at $vu VUs" }
 
         $summary = Get-Content -Raw "$here/$outFile" | ConvertFrom-Json
         $rate = $summary.metrics.'http_reqs'.rate
@@ -102,5 +134,4 @@ $results | Export-Csv -Path "$here/results.csv" -NoTypeInformation
 Write-Host "Saved to benchmarks/results.csv"
 
 # Clean up the configured host so reruns are idempotent
-Invoke-WebRequest -Uri "http://127.0.0.1:18081/api/v1/hosts" -WebSession $sess -UseBasicParsing | Out-Null
 Write-Host "Done."

@@ -6,10 +6,8 @@ export interface ProxyHost {
   scheme: 'http' | 'https';
   forwardHost: string;
   forwardPort: number;
-  webSocketsEnabled: boolean;
   blockCommonExploits: boolean;
   forceHttps: boolean;
-  http2Support: boolean;
   certificateId: string | null;
   accessListId: string | null;
   requestHeaders: ProxyHeader[];
@@ -79,10 +77,8 @@ export interface ProxyHostInput {
   scheme: 'http' | 'https';
   forwardHost: string;
   forwardPort: number;
-  webSocketsEnabled: boolean;
   blockCommonExploits: boolean;
   forceHttps: boolean;
-  http2Support: boolean;
   certificateId: string | null;
   accessListId: string | null;
   requestHeaders: ProxyHeaderInput[];

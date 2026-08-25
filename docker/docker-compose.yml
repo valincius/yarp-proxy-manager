@@ -11,9 +11,8 @@ services:
       - "443:443" # reverse proxy (HTTPS, SNI certificate selection)
       - "81:81" # admin UI + API
       # Streams (TCP/UDP) additionally publish their listen ports here (Phase 4).
-    environment:
-      - Admin__Email=admin@example.com
-      - Admin__Password=changeme
+    # For unattended setup, provide Admin__Email and Admin__Password here.
+    # Otherwise open the admin port and complete the first-run setup wizard.
     volumes:
       - ./data:/data # SQLite, certificates, Data Protection keys, logs
       # Docker autodiscovery (Stage 2): mount the engine socket so the manager

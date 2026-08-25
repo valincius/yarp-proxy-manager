@@ -65,6 +65,40 @@ public sealed class ApiIntegrationTests
     }
 
     [Fact]
+    public async Task SetupStatus_ReportsSeededInstanceAsAlreadyConfigured()
+    {
+        using var factory = new ProxyApiFactory();
+        using var client = factory.CreateClient();
+
+        var response = await client.GetAsync("/api/v1/auth/setup-status");
+
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        var body = await response.Content.ReadFromJsonAsync<SetupStatusResponse>();
+        body!.Setup.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task Backup_ExportsVersionedPayload_AndRejectsInvalidRestore()
+    {
+        using var factory = new ProxyApiFactory();
+        var client = await TestApi.LoginAsync(factory, BaseUrl);
+
+        var export = await client.GetAsync("/api/v1/backup");
+        export.StatusCode.Should().Be(HttpStatusCode.OK);
+        var backup = await export.Content.ReadFromJsonAsync<BackupResponse>();
+        backup!.SchemaVersion.Should().Be(1);
+
+        var invalid = await client.PostAsJsonAsync("/api/v1/backup/validate", new
+        {
+            schemaVersion = 99,
+            exportedAt = DateTimeOffset.UtcNow,
+            hosts = Array.Empty<object>(), redirects = Array.Empty<object>(),
+            streams = Array.Empty<object>(), accessLists = Array.Empty<object>()
+        });
+        invalid.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
     public async Task Mutations_WithoutAntiforgeryToken_AreRejected()
     {
         using var factory = new ProxyApiFactory();
@@ -195,9 +229,13 @@ public sealed class ApiIntegrationTests
 
     private sealed record SessionResponse(bool Authenticated, string? Email, string? DisplayName, string[] Roles);
 
+    private sealed record SetupStatusResponse(bool Setup);
+
+    private sealed record BackupResponse(int SchemaVersion, DateTimeOffset ExportedAt);
+
     private sealed record ProxyHostResponse(Guid Id, string Name, string[] DomainNames, bool Enabled,
-        string Scheme, string ForwardHost, int ForwardPort, bool WebSocketsEnabled, bool BlockCommonExploits,
-        bool ForceHttps, bool Http2Support, Guid? CertificateId, Guid? AccessListId,
+        string Scheme, string ForwardHost, int ForwardPort, bool BlockCommonExploits,
+        bool ForceHttps, Guid? CertificateId, Guid? AccessListId,
         ProxyHeaderResponse[] RequestHeaders, ProxyHeaderResponse[] ResponseHeaders, ProxyLocationResponse[] Locations);
 
     private sealed record ProxyHeaderResponse(string Target, string Action, string Name, string Value);
