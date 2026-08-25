@@ -81,14 +81,14 @@ echo "--- acme-settings (staging vs production CA) ---"
 curl -fsS -m 5 -H "$AUTH" "http://127.0.0.1:${ADMIN_PORT}/api/v1/acme-settings" 2>/dev/null; echo ""
 
 echo ""
-echo "===== 7. Diagnostics (requires the latest build with the observability work) ====="
+echo "===== 7. Diagnostics ====="
 curl -fsS -m 5 -H "$AUTH" "http://127.0.0.1:${ADMIN_PORT}/api/v1/diagnostics/overview" 2>/dev/null | head -c 800; echo ""
 echo "--- traffic ---"
 curl -fsS -m 5 -H "$AUTH" "http://127.0.0.1:${ADMIN_PORT}/api/v1/diagnostics/traffic?window=5m" 2>/dev/null | head -c 800; echo ""
 
 echo ""
 echo "===== 8. Metrics sample (traffic_*) ====="
-curl -fsS -m 5 "http://127.0.0.1:${ADMIN_PORT}/metrics" 2>/dev/null | grep -E '^(traffic_|yarp_)' | head -20 || echo "(no traffic_* metrics — either no traffic or an older build)"
+curl -fsS -m 5 "http://127.0.0.1:${ADMIN_PORT}/metrics" 2>/dev/null | grep -E '^(traffic_|yarp_)' | head -20 || echo "(no traffic_* metrics — either no traffic yet or the meter is not registered)"
 
 echo ""
 echo "===== 9. Data volume contents ====="
@@ -96,5 +96,5 @@ ls -la data/ 2>/dev/null | head -20
 
 echo ""
 echo "===== 10. Upstream reachability from inside the container ====="
-# 192.168.2.2:6000 was a typical NPM forward target; substitute your own if different.
+# Probes an example upstream; edit the address to match a host reachable from the container.
 docker exec yarp-proxy-manager sh -c 'wget -q -T 3 -O - http://192.168.2.2:6000/ 2>&1 | head -c 200' 2>&1 || echo "(cannot reach 192.168.2.2:6000 from the container — check upstream bindings/networks)"

@@ -10,7 +10,7 @@ using Yarp.ReverseProxy.Configuration;
 namespace ProxyManager.Tests;
 
 /// <summary>
-/// Phase 0 smoke test: proves YARP 2.3.0 (net8.0 assembly) runs on the net10.0
+/// Smoke test: proves YARP (net8.0 assembly) runs on the net10.0
 /// runtime and proxies HTTP traffic between two real Kestrel servers.
 /// </summary>
 public sealed class ProxySmokeTests

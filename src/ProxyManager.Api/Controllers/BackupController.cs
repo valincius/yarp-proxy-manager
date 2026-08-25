@@ -37,16 +37,16 @@ public sealed class BackupController(
     }
 
     [HttpPost("validate")]
-    public async Task<IActionResult> Validate(BackupPayload? payload, CancellationToken cancellationToken)
+    public IActionResult Validate(BackupPayload? payload)
     {
-        var errors = await ValidatePayloadAsync(payload, cancellationToken);
+        var errors = ValidatePayload(payload);
         return errors.Count == 0 ? Ok(new { valid = true }) : BadRequest(new { valid = false, errors });
     }
 
     [HttpPost("restore")]
     public async Task<IActionResult> Restore(BackupPayload payload, CancellationToken cancellationToken)
     {
-        var errors = await ValidatePayloadAsync(payload, cancellationToken);
+        var errors = ValidatePayload(payload);
         if (errors.Count > 0)
         {
             return BadRequest(new { valid = false, errors });
@@ -70,7 +70,7 @@ public sealed class BackupController(
         return NoContent();
     }
 
-    private async Task<List<string>> ValidatePayloadAsync(BackupPayload? payload, CancellationToken cancellationToken)
+    private static List<string> ValidatePayload(BackupPayload? payload)
     {
         var errors = new List<string>();
         if (payload is null)
@@ -128,9 +128,6 @@ public sealed class BackupController(
             errors.Add("Access-list rules must use Allow/Deny and valid IP, CIDR, or '*' patterns.");
         }
 
-        // Keep the method asynchronous so large restore validation can later include
-        // certificate/reference checks without changing the controller contract.
-        await Task.CompletedTask;
         return errors;
     }
 }

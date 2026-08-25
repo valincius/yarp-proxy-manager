@@ -73,7 +73,7 @@ public partial class Program
             options.UseSqlite(connectionString)
                 .AddInterceptors(services.GetRequiredService<AuditSaveChangesInterceptor>()));
 
-        // --- Identity (local users, cookie auth; OIDC arrives in a later phase) ---
+        // --- Identity (local users, cookie auth; optional OIDC external login below) ---
         builder.Services
             .AddIdentity<ApplicationUser, IdentityRole<Guid>>(options =>
             {
@@ -172,7 +172,6 @@ public partial class Program
         builder.Services.AddScoped<CertificateDeduplicator>();
         builder.Services.AddHostedService<CertificateRenewalWorker>();
 
-        // --- Kestrel HTTPS with SNI certificate selection ---
         // --- Streams (TCP/UDP) ---
         builder.Services.AddSingleton<StreamStatusRegistry>();
         builder.Services.AddSingleton<StreamMetrics>();

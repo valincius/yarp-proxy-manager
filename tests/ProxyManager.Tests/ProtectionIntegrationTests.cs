@@ -13,7 +13,7 @@ using Xunit;
 namespace ProxyManager.Tests;
 
 /// <summary>
-/// Real-pipeline verification of Phase 3: redirect hosts, access lists, exploit
+/// Real-pipeline verification of the protection features: redirect hosts, access lists, exploit
 /// blocking, the audit log, and user management.
 /// </summary>
 public sealed class ProtectionIntegrationTests

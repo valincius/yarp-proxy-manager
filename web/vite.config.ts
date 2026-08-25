@@ -29,8 +29,6 @@ export default defineConfig({
     environment: 'jsdom',
     globals: false,
     setupFiles: ['./vitest-setup.ts'],
-    // if you have few tests, try commenting this
-    // out to improve performance:
     isolate: false,
   },
   build: {

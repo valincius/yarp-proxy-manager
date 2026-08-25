@@ -23,7 +23,7 @@ public sealed class ProxyHost
 
     public int ForwardPort { get; set; } = 80;
 
-    /// <summary>When enabled, requests matching common exploit patterns are rejected (Phase 3 middleware).</summary>
+    /// <summary>When enabled, requests matching common exploit patterns are rejected (middleware in ProxyManager.Proxy).</summary>
     public bool BlockCommonExploits { get; set; } = true;
 
     /// <summary>When set (requires a certificate), HTTP requests are 301-redirected to HTTPS.</summary>

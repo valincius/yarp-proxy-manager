@@ -104,12 +104,10 @@ afterEach(() => {
 });
 
 describe('host form', () => {
-  // Note: the edit route (/admin/hosts/:id) can't be exercised in jsdom — the
-  // router's strict-read safeguard throws [PENDING_ASYNC_UNTRACKED_READ] when
-  // HostForm's async queries render inside the route's Loading boundary (pre-existing,
-  // reproduces with the unmodified HostForm). The certificate-selection fix is
-  // covered indirectly: the same `selected`-option mechanism renders the attached
-  // cert in the new-host form's dropdown and is verified in the browser.
+  // Note: the edit route (/admin/hosts/:id) is not exercised here — its async
+  // queries can't be awaited inside the route's <Loading> boundary under jsdom.
+  // The certificate-selection mechanism it relies on (marking the matching
+  // <option> as `selected`) is covered by the new-host tests below.
 
   it('the + New certificate button opens the request modal', async () => {
     window.history.replaceState(null, '', '/admin/hosts/new');

@@ -10,12 +10,12 @@ services:
       - "80:80" # reverse proxy (HTTP)
       - "443:443" # reverse proxy (HTTPS, SNI certificate selection)
       - "81:81" # admin UI + API
-      # Streams (TCP/UDP) additionally publish their listen ports here (Phase 4).
+      # Streams (TCP/UDP) additionally publish their configured listen ports here.
     # For unattended setup, provide Admin__Email and Admin__Password here.
     # Otherwise open the admin port and complete the first-run setup wizard.
     volumes:
       - ./data:/data # SQLite, certificates, Data Protection keys, logs
-      # Docker autodiscovery (Stage 2): mount the engine socket so the manager
+      # Docker autodiscovery: mount the engine socket so the manager
       # can watch container labels. Linux: /var/run/docker.sock; on Windows
       # Docker Desktop the named pipe is the default and needs no mount.
       - /var/run/docker.sock:/var/run/docker.sock
