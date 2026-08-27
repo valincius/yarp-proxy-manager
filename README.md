@@ -32,7 +32,7 @@ Example flow:
 
 ## Screenshots
 
-The admin UI keeps proxy configuration, access controls, streams, certificates, traffic diagnostics, audit history, settings, and users in one place. The examples below come from a seeded local instance and are cropped to the page content.
+The admin UI keeps proxy configuration, access controls, streams, certificates, traffic diagnostics, audit history, settings, and users in one place. 
 
 ![Dashboard](docs/assets/readme-dashboard.png)
 
