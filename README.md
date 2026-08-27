@@ -30,6 +30,30 @@ Example flow:
 
 > **Security note:** the admin port is unauthenticated only until the first administrator is created. Create a strong password, keep port 81 behind a firewall/VPN if the proxy ports are public, and treat API keys as secrets.
 
+## Screenshots
+
+The admin UI keeps proxy configuration, access controls, streams, certificates, traffic diagnostics, audit history, settings, and users in one place. The examples below come from a seeded local instance and are cropped to the page content.
+
+![Dashboard](docs/assets/readme-dashboard.png)
+
+![Proxy hosts](docs/assets/readme-proxy-hosts.png)
+
+![Redirection hosts](docs/assets/readme-redirects.png)
+
+![Access lists](docs/assets/readme-access-lists.png)
+
+![Streams](docs/assets/readme-streams.png)
+
+![SSL certificates](docs/assets/readme-certificates.png)
+
+![Traffic diagnostics](docs/assets/readme-diagnostics.png)
+
+![Audit log](docs/assets/readme-audit.png)
+
+![Settings](docs/assets/readme-settings.png)
+
+![Users](docs/assets/readme-users.png)
+
 ## Examples
 
 All examples use the REST API on the admin port (`81` in Docker, `5081` in dev) with an API key in the `X-Api-Key` header — see [docs/API.md](docs/API.md) for key management and the full reference. Configuration changes apply immediately; no restart is needed.
