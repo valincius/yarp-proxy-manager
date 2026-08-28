@@ -16,7 +16,7 @@ export default function Audit() {
       <h1 class="mb-6 text-2xl font-semibold text-slate-800">Audit Log</h1>
 
       <Show when={audit().length > 0} fallback={<p class="text-sm text-slate-500">No audit entries yet.</p>}>
-        <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
+        <table class="responsive-card-table w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
           <thead>
             <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
               <th class="px-4 py-3">Timestamp</th>
@@ -29,11 +29,11 @@ export default function Audit() {
             <For each={audit()}>
               {(entry) => (
                 <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td class="whitespace-nowrap px-4 py-3 text-slate-500">
+                  <td data-label="Time" class="whitespace-nowrap px-4 py-3 text-slate-500">
                     {new Date(entry.timestamp).toLocaleString()}
                   </td>
-                  <td class="px-4 py-3 font-medium text-slate-800">{entry.entityType}</td>
-                  <td class="px-4 py-3">
+                  <td data-label="Entity" class="px-4 py-3 font-medium text-slate-800">{entry.entityType}</td>
+                  <td data-label="Action" class="px-4 py-3">
                     <span
                       class={`rounded-full px-2 py-0.5 text-xs font-medium ${
                         entry.action === 'Added'
@@ -46,7 +46,7 @@ export default function Audit() {
                       {entry.action}
                     </span>
                   </td>
-                  <td class="max-w-md truncate px-4 py-3 text-xs text-slate-500" title={entry.details}>
+                  <td data-label="Details" class="max-w-md truncate px-4 py-3 text-xs text-slate-500" title={entry.details}>
                     {entry.details}
                   </td>
                 </tr>

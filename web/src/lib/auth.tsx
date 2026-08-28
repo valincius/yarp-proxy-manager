@@ -1,5 +1,5 @@
 import { createContext, createSignal, useContext, type ParentProps } from 'solid-js';
-import { api, ApiError, fetchXsrfToken } from './api';
+import { api, ApiError, fetchXsrfToken, setXsrfToken } from './api';
 import type { Session } from './types';
 
 interface AuthValue {
@@ -27,12 +27,20 @@ export function AuthProvider(props: ParentProps) {
       if (error instanceof ApiError && error.status === 401) {
         setSession(null);
       } else {
-        throw error;
+        // A temporarily unavailable API should not leave the entire app on a
+        // permanent loading screen. The login page remains available so the
+        // user can retry once the backend is reachable again.
+        setSession(null);
       }
     } finally {
       // The antiforgery token is bound to the user identity, so it must be
       // re-fetched after any authentication-state change.
-      await fetchXsrfToken();
+      try {
+        await fetchXsrfToken();
+      } catch {
+        // The next mutating request will surface the API error normally.
+        setXsrfToken('');
+      }
       setReady(true);
     }
   }

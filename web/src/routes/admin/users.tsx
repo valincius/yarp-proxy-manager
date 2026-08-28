@@ -73,7 +73,7 @@ export default function Users() {
   return (
     <section>
       <Title>Users - YARP Proxy Manager</Title>
-      <div class="mb-6 flex items-center justify-between">
+      <div class="page-header mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-semibold text-slate-800">Users</h1>
         <button
           class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
@@ -87,7 +87,7 @@ export default function Users() {
         <CreateUserForm onDone={() => setShowCreate(false)} />
       </Modal>
 
-      <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
+      <table class="responsive-card-table w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
         <thead>
           <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
             <th class="px-4 py-3">Email</th>
@@ -100,9 +100,9 @@ export default function Users() {
           <For each={users()}>
             {(user) => (
               <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                <td class="px-4 py-3 font-medium text-slate-800">{user.email}</td>
-                <td class="px-4 py-3 text-slate-600">{user.roles.join(', ')}</td>
-                <td class="px-4 py-3">
+                <td data-label="Email" class="px-4 py-3 font-medium text-slate-800">{user.email}</td>
+                <td data-label="Roles" class="px-4 py-3 text-slate-600">{user.roles.join(', ')}</td>
+                <td data-label="Status" class="px-4 py-3">
                   <span
                     class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                       user.lockoutEnd === null ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
@@ -111,7 +111,7 @@ export default function Users() {
                     {user.lockoutEnd === null ? 'Active' : 'Disabled'}
                   </span>
                 </td>
-                <td class="px-4 py-3">
+                <td data-label="Actions" class="px-4 py-3">
                   <div class="flex items-center justify-end gap-1">
                     <PowerButton
                       enabled={user.lockoutEnd === null}

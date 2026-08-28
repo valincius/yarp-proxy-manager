@@ -717,7 +717,7 @@ function ApiKeysSection() {
       </Modal>
 
       <Show when={keys().length > 0} fallback={<p class="text-sm text-slate-500">No API keys yet.</p>}>
-        <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
+        <table class="responsive-card-table w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
           <thead>
             <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
               <th class="px-4 py-3">Name</th>
@@ -731,13 +731,13 @@ function ApiKeysSection() {
             <For each={keys()}>
               {(key) => (
                 <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td class="px-4 py-3 font-medium text-slate-800">{key.name}</td>
-                  <td class="px-4 py-3">
+                  <td data-label="Name" class="px-4 py-3 font-medium text-slate-800">{key.name}</td>
+                  <td data-label="Key prefix" class="px-4 py-3">
                     <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-700">{key.prefix}…</code>
                   </td>
-                  <td class="px-4 py-3 text-slate-600">{formatDateTime(key.createdAt)}</td>
-                  <td class="px-4 py-3 text-slate-600">{key.lastUsedAt ? formatDateTime(key.lastUsedAt) : 'never'}</td>
-                  <td class="px-4 py-3">
+                  <td data-label="Created" class="px-4 py-3 text-slate-600">{formatDateTime(key.createdAt)}</td>
+                  <td data-label="Last used" class="px-4 py-3 text-slate-600">{key.lastUsedAt ? formatDateTime(key.lastUsedAt) : 'never'}</td>
+                  <td data-label="Actions" class="px-4 py-3">
                     <div class="flex items-center justify-end gap-1">
                       <DeleteButton
                         disabled={busyId() === key.id}

@@ -28,6 +28,8 @@ export default defineConfig({
   test: {
     environment: 'jsdom',
     globals: false,
+    include: ['src/**/*.test.{ts,tsx}'],
+    exclude: ['tests/visual/**'],
     setupFiles: ['./vitest-setup.ts'],
     isolate: false,
   },

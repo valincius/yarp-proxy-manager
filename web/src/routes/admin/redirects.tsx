@@ -46,7 +46,7 @@ export default function Redirects() {
   return (
     <section>
       <Title>Redirection Hosts - YARP Proxy Manager</Title>
-      <div class="mb-6 flex items-center justify-between">
+      <div class="page-header mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-semibold text-slate-800">Redirection Hosts</h1>
         <button
           class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
@@ -74,7 +74,7 @@ export default function Redirects() {
       </Modal>
 
       <Show when={redirects().length > 0} fallback={<p class="text-sm text-slate-500">No redirects yet.</p>}>
-        <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
+        <table class="responsive-card-table w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
           <thead>
             <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
               <th class="px-4 py-3">Name</th>
@@ -88,12 +88,12 @@ export default function Redirects() {
             <For each={redirects()}>
               {(redirect) => (
                 <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                  <td class="px-4 py-3 font-medium text-slate-800">{redirect.name}</td>
-                  <td class="px-4 py-3 text-slate-600">{redirect.domainNames.join(', ')}</td>
-                  <td class="px-4 py-3 text-slate-600">
+                  <td data-label="Name" class="px-4 py-3 font-medium text-slate-800">{redirect.name}</td>
+                  <td data-label="Domains" class="px-4 py-3 text-slate-600">{redirect.domainNames.join(', ')}</td>
+                  <td data-label="Redirect to" class="px-4 py-3 text-slate-600">
                     {redirect.forwardScheme}://{redirect.forwardHost}:{redirect.forwardPort}
                   </td>
-                  <td class="px-4 py-3">
+                  <td data-label="Status" class="px-4 py-3">
                     <span
                       class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                         redirect.enabled ? 'bg-green-100 text-green-700' : 'bg-slate-200 text-slate-600'
@@ -110,7 +110,7 @@ export default function Redirects() {
                       </span>
                     ) : null}
                   </td>
-                  <td class="px-4 py-3">
+                  <td data-label="Actions" class="px-4 py-3">
                     <div class="flex items-center justify-end gap-2">
                       <button
                         class="text-xs font-medium text-blue-600 hover:text-blue-700"

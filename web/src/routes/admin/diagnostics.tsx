@@ -84,7 +84,7 @@ export default function Diagnostics() {
   return (
     <section class="space-y-8">
       <Title>Diagnostics - YARP Proxy Manager</Title>
-      <div class="flex items-center justify-between">
+      <div class="page-header flex items-center justify-between">
         <h1 class="text-2xl font-semibold text-slate-800">Diagnostics</h1>
         <span class="text-xs text-slate-500">
           Live traffic statistics · refreshes every {REFRESH_MS / 1000}s · <code class="rounded bg-slate-100 px-1">/metrics</code>
@@ -140,7 +140,7 @@ export default function Diagnostics() {
 
       {/* Traffic table */}
       <div>
-        <div class="mb-3 flex items-center justify-between">
+        <div class="section-header mb-3 flex items-center justify-between">
           <h2 class="text-lg font-medium text-slate-800">Traffic by host</h2>
           <div class="flex gap-1">
             <For each={WINDOWS}>
@@ -164,7 +164,7 @@ export default function Diagnostics() {
           fallback={<p class="text-sm text-slate-500">No traffic in this window yet. Send a request to a proxy host.</p>}
         >
           <div class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-            <table class="w-full text-sm">
+            <table class="responsive-card-table w-full text-sm">
               <thead>
                 <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                   <th class="px-4 py-3">Host</th>
@@ -184,30 +184,30 @@ export default function Diagnostics() {
                 <For each={traffic()}>
                   {(row) => (
                     <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                      <td class="px-4 py-3">
+                      <td data-label="Host" class="px-4 py-3">
                         <div class="font-medium text-slate-800">{row.host}</div>
                         <Show when={row.hostName && row.hostName !== row.host}>
                           <div class="text-xs text-slate-400">→ {row.hostName}</div>
                         </Show>
                       </td>
-                      <td class="px-4 py-3 text-right font-medium text-slate-800">{fmt(row.requests)}</td>
-                      <td class="px-4 py-3 text-center text-green-600">{fmt(row.class2xx)}</td>
-                      <td class="px-4 py-3 text-center text-slate-500">{fmt(row.class3xx)}</td>
-                      <td class={`px-4 py-3 text-center ${row.class4xx > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                      <td data-label="Requests" class="px-4 py-3 text-right font-medium text-slate-800">{fmt(row.requests)}</td>
+                      <td data-label="2xx" class="px-4 py-3 text-center text-green-600">{fmt(row.class2xx)}</td>
+                      <td data-label="3xx" class="px-4 py-3 text-center text-slate-500">{fmt(row.class3xx)}</td>
+                      <td data-label="4xx" class={`px-4 py-3 text-center ${row.class4xx > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
                         {fmt(row.class4xx)}
                       </td>
-                      <td class={`px-4 py-3 text-center ${row.class5xx > 0 ? 'text-red-600' : 'text-slate-400'}`}>
+                      <td data-label="5xx" class={`px-4 py-3 text-center ${row.class5xx > 0 ? 'text-red-600' : 'text-slate-400'}`}>
                         {fmt(row.class5xx)}
                       </td>
-                      <td class="px-4 py-3 text-right text-slate-600">{row.averageMs.toFixed(1)}ms</td>
-                      <td class="px-4 py-3 text-right text-slate-600">
+                      <td data-label="Average" class="px-4 py-3 text-right text-slate-600">{row.averageMs.toFixed(1)}ms</td>
+                      <td data-label="Percentiles" class="px-4 py-3 text-right text-slate-600">
                         {row.p50Ms.toFixed(1)} / {row.p95Ms.toFixed(1)} / {row.p99Ms.toFixed(1)} ms
                       </td>
-                      <td class="px-4 py-3 text-right text-slate-600">
+                      <td data-label="Bytes" class="px-4 py-3 text-right text-slate-600">
                         {fmt(row.bytesIn)} / {fmt(row.bytesOut)}
                       </td>
-                      <td class="px-4 py-3 text-right text-slate-600">{row.active}</td>
-                      <td class="max-w-[14rem] truncate px-4 py-3 text-xs text-red-600" title={row.lastError ?? ''}>
+                      <td data-label="Active" class="px-4 py-3 text-right text-slate-600">{row.active}</td>
+                      <td data-label="Last error" class="max-w-[14rem] truncate px-4 py-3 text-xs text-red-600" title={row.lastError ?? ''}>
                         {row.lastError ?? '—'}
                       </td>
                     </tr>
@@ -228,7 +228,7 @@ export default function Diagnostics() {
             fallback={<p class="text-sm text-slate-500">No requests recorded yet.</p>}
           >
             <div class="overflow-x-auto rounded-lg border border-slate-200 bg-white shadow-sm">
-              <table class="w-full text-sm">
+              <table class="responsive-card-table w-full text-sm">
                 <thead>
                   <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                     <th class="px-4 py-3">When</th>
@@ -267,20 +267,20 @@ function RequestRow(props: { req: RecentRequest }) {
         class="cursor-pointer border-b border-slate-100 last:border-0 hover:bg-slate-50"
         onClick={() => setOpen((o) => !o)}
       >
-        <td class="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{formatDate(req().timestamp)}</td>
-        <td class="px-4 py-3">
+        <td data-label="When" class="whitespace-nowrap px-4 py-3 text-xs text-slate-500">{formatDate(req().timestamp)}</td>
+        <td data-label="Method" class="px-4 py-3">
           <code class="rounded bg-slate-100 px-1.5 py-0.5 text-xs font-medium text-slate-700">{req().method}</code>
         </td>
-        <td class="px-4 py-3 text-slate-700">{req().host}</td>
-        <td class="max-w-[20rem] truncate px-4 py-3 text-slate-600" title={req().path}>{req().path}</td>
-        <td class="px-4 py-3 text-center">
+        <td data-label="Host" class="px-4 py-3 text-slate-700">{req().host}</td>
+        <td data-label="Path" class="max-w-[20rem] truncate px-4 py-3 text-slate-600" title={req().path}>{req().path}</td>
+        <td data-label="Status" class="px-4 py-3 text-center">
           <StatusPill code={req().statusCode} />
         </td>
-        <td class="px-4 py-3 text-right text-slate-600">{req().durationMs}ms</td>
-        <td class="px-4 py-3 text-right text-slate-600">
+        <td data-label="Duration" class="px-4 py-3 text-right text-slate-600">{req().durationMs}ms</td>
+        <td data-label="Bytes" class="px-4 py-3 text-right text-slate-600">
           {fmt(req().bytesIn)} / {fmt(req().bytesOut)}
         </td>
-        <td class="px-4 py-3 text-xs text-slate-500">{req().clientIp ?? '—'}</td>
+        <td data-label="Client IP" class="px-4 py-3 text-xs text-slate-500">{req().clientIp ?? '—'}</td>
       </tr>
       <Show when={open()}>
         <tr class="border-b border-slate-100 bg-slate-50">

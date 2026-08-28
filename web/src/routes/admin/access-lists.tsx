@@ -60,7 +60,7 @@ export default function AccessLists() {
   return (
     <section>
       <Title>Access Lists - YARP Proxy Manager</Title>
-      <div class="mb-6 flex items-center justify-between">
+      <div class="page-header mb-6 flex items-center justify-between">
         <h1 class="text-2xl font-semibold text-slate-800">Access Lists</h1>
         <button
           class="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
@@ -88,7 +88,7 @@ export default function AccessLists() {
       </Modal>
 
       <Show when={lists().length > 0} fallback={<p class="text-sm text-slate-500">No access lists yet.</p>}>
-        <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
+        <table class="responsive-card-table w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
           <thead>
             <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
               <th class="w-10 px-4 py-3"></th>
@@ -105,7 +105,7 @@ export default function AccessLists() {
                 return (
                   <>
                     <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-                      <td class="px-4 py-3">
+                      <td data-label="Status" class="px-4 py-3">
                         <button
                           class="rounded p-1 text-slate-500 hover:bg-slate-100 hover:text-slate-800"
                           onClick={() => toggleExpanded(list.id)}
@@ -124,8 +124,8 @@ export default function AccessLists() {
                           </svg>
                         </button>
                       </td>
-                      <td class="px-4 py-3 font-medium text-slate-800">{list.name}</td>
-                      <td class="px-4 py-3">
+                      <td data-label="Name" class="px-4 py-3 font-medium text-slate-800">{list.name}</td>
+                      <td data-label="Rules" class="px-4 py-3">
                         <span
                           class={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${
                             list.satisfyAny ? 'bg-blue-100 text-blue-700' : 'bg-slate-200 text-slate-600'
@@ -134,8 +134,8 @@ export default function AccessLists() {
                           {list.satisfyAny ? 'Satisfy Any' : 'Satisfy All'}
                         </span>
                       </td>
-                      <td class="px-4 py-3 text-slate-600">{list.rules.length} rule{list.rules.length === 1 ? '' : 's'}</td>
-                      <td class="px-4 py-3">
+                      <td data-label="Count" class="px-4 py-3 text-slate-600">{list.rules.length} rule{list.rules.length === 1 ? '' : 's'}</td>
+                      <td data-label="Actions" class="px-4 py-3">
                         <div class="flex items-center justify-end gap-2">
                           <button
                             class="text-xs font-medium text-blue-600 hover:text-blue-700"
@@ -154,7 +154,7 @@ export default function AccessLists() {
                     </tr>
                     <Show when={isExpanded()}>
                       <tr class="border-b border-slate-100 bg-slate-50/60 last:border-0">
-                        <td class="px-4 py-3"></td>
+                        <td data-label="" class="px-4 py-3"></td>
                         <td colspan={5} class="px-4 py-3">
                           <Show
                             when={list.rules.length > 0}
@@ -265,7 +265,7 @@ function AccessListForm(props: { initial?: AccessList; onDone: () => void }) {
         <div class="space-y-2">
           <For each={rules()}>
             {(rule, index) => (
-              <div class="flex items-center gap-2">
+              <div class="form-row flex items-center gap-2">
                 <select
                   class="w-28 rounded-md border border-slate-300 px-2 py-2 text-sm"
                   value={rule.action}

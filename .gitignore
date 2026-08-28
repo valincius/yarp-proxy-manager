@@ -3,6 +3,8 @@ node_modules/
 .pnpm-store/
 web/dist/
 web/coverage/
+web/test-results/
+web/playwright-report/
 *.tsbuildinfo
 
 # --- .NET ---

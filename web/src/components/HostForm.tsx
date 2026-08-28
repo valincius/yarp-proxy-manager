@@ -534,7 +534,7 @@ function AccessListCreateModal(props: { onDone: (list: AccessList) => void }) {
         <div class="space-y-2">
           <For each={rules()}>
             {(rule, index) => (
-              <div class="flex items-center gap-2">
+              <div class="editor-row flex items-center gap-2">
                 <select
                   class="w-28 rounded-md border border-slate-300 px-2 py-2 text-sm"
                   value={rule.action}
@@ -600,7 +600,7 @@ function HeaderEditor(props: {
         <div class="space-y-2">
           <For each={props.headers()}>
             {(header, index) => (
-              <div class="flex items-center gap-2">
+              <div class="editor-row flex items-center gap-2">
                 <select
                   class="w-24 rounded-md border border-slate-300 px-2 py-2 text-sm"
                   value={header.action}
@@ -667,7 +667,7 @@ function LocationEditor(props: {
         <div class="space-y-2">
           <For each={props.locations()}>
             {(location, index) => (
-              <div class="flex items-center gap-2">
+              <div class="editor-row flex items-center gap-2">
                 <input
                   class="w-28 rounded-md border border-slate-300 px-3 py-2 text-sm"
                   placeholder="/api"
@@ -775,7 +775,7 @@ function DestinationEditor(props: {
         <div class="space-y-2">
           <For each={props.destinations()}>
             {(destination, index) => (
-              <div class="flex items-center gap-2">
+              <div class="editor-row flex items-center gap-2">
                 <input
                   class="flex-1 rounded-md border border-slate-300 px-3 py-2 text-sm"
                   placeholder="Forward host"

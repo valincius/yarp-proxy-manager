@@ -1,1 +1,197 @@
 @import 'tailwindcss';
+
+/* The admin shell is intentionally desktop-first, but its navigation and
+ * data-heavy surfaces still need to be usable on a phone. Keep these rules
+ * here so every route gets the same responsive behavior. */
+
+.admin-main {
+  overflow-x: hidden;
+}
+
+.admin-menu-button {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .admin-shell {
+    display: block;
+    height: auto;
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .admin-sidebar {
+    width: 100%;
+    height: auto;
+    position: sticky;
+    top: 0;
+    z-index: 20;
+  }
+
+  .admin-brand {
+    padding: 0.875rem 1rem;
+  }
+
+  .admin-menu-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    line-height: 1;
+  }
+
+  .mobile-menu-hidden {
+    display: none;
+  }
+
+  .admin-search {
+    padding: 0.75rem 1rem 0.5rem;
+  }
+
+  .admin-nav {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.25rem;
+    padding: 0 1rem 0.75rem;
+    overflow: visible;
+  }
+
+  .admin-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    margin-top: 0;
+    padding: 0.75rem 1rem;
+  }
+
+  .admin-footer > div {
+    margin: 0;
+    min-width: 0;
+  }
+
+  .admin-search.mobile-menu-hidden,
+  .admin-nav.mobile-menu-hidden,
+  .admin-footer.mobile-menu-hidden {
+    display: none;
+  }
+
+  .admin-main {
+    width: 100%;
+    overflow-x: hidden;
+    padding: 1rem;
+  }
+
+  .admin-main section > .page-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .admin-main .section-header {
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .admin-main section > .page-header h1 {
+    min-width: 0;
+  }
+
+  .admin-main table {
+    display: block;
+    width: max-content;
+    min-width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .admin-main table.responsive-card-table {
+    width: 100%;
+    min-width: 0;
+    overflow: visible;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .admin-main table.responsive-card-table thead {
+    display: none;
+  }
+
+  .admin-main table.responsive-card-table tbody {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  .admin-main table.responsive-card-table tr {
+    display: grid;
+    gap: 0.25rem;
+    border: 1px solid rgb(226 232 240);
+    border-radius: 0.5rem;
+    background: white;
+    padding: 0.75rem 1rem;
+    box-shadow: 0 1px 2px rgb(15 23 42 / 0.05);
+  }
+
+  .admin-main table.responsive-card-table td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    min-width: 0;
+    padding: 0.25rem 0;
+    text-align: right;
+    white-space: normal;
+  }
+
+  .admin-main table.responsive-card-table td::before {
+    flex: 0 0 6.5rem;
+    color: rgb(100 116 139);
+    content: attr(data-label);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    line-height: 1.25rem;
+    text-align: left;
+    text-transform: uppercase;
+  }
+
+  .admin-main table.responsive-card-table td[colspan] {
+    display: block;
+    text-align: left;
+  }
+
+  .admin-main table.responsive-card-table td[colspan]::before {
+    display: none;
+  }
+
+  .admin-main table.responsive-card-table td > div {
+    max-width: 100%;
+  }
+
+  .admin-main .editor-row,
+  .admin-main .form-row {
+    flex-wrap: wrap;
+  }
+
+  .admin-main .editor-row > input,
+  .admin-main .editor-row > select,
+  .admin-main .form-row > input,
+  .admin-main .form-row > select {
+    width: auto !important;
+    min-width: 0;
+    flex: 1 1 8rem;
+  }
+
+  .admin-main .editor-row > button,
+  .admin-main .form-row > button {
+    flex: 0 0 auto;
+    margin-left: auto;
+    white-space: nowrap;
+  }
+
+  .admin-main .editor-row > input[type='number'],
+  .admin-main .form-row > input[type='number'] {
+    width: 5rem !important;
+    flex: 0 1 5rem;
+  }
+}

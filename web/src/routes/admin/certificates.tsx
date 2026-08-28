@@ -49,7 +49,7 @@ export default function Certificates() {
   return (
     <section class="space-y-8">
       <Title>SSL Certificates - YARP Proxy Manager</Title>
-      <div class="flex items-center justify-between">
+      <div class="page-header flex items-center justify-between">
         <h1 class="text-2xl font-semibold text-slate-800">SSL Certificates</h1>
         <div class="flex gap-2">
           <button
@@ -85,7 +85,7 @@ export default function Certificates() {
       </Modal>
 
       <div>
-        <div class="mb-3 flex items-center justify-between">
+        <div class="section-header mb-3 flex items-center justify-between">
           <h2 class="text-lg font-medium text-slate-800">Certificates</h2>
           <span class="text-xs text-slate-500">
             ACME account settings and DNS credentials live on the{' '}
@@ -96,7 +96,7 @@ export default function Certificates() {
           </span>
         </div>
         <Show when={data().certificates.length > 0} fallback={<p class="text-sm text-slate-500">No certificates yet.</p>}>
-          <table class="w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
+          <table class="responsive-card-table w-full rounded-lg border border-slate-200 bg-white text-sm shadow-sm">
             <thead>
               <tr class="border-b border-slate-200 text-left text-xs uppercase tracking-wide text-slate-500">
                 <th class="px-4 py-3">Name</th>
@@ -267,10 +267,10 @@ function CertificateRow(props: { certificate: CertificateDto; onView: () => void
 
   return (
     <tr class="border-b border-slate-100 last:border-0 hover:bg-slate-50">
-      <td class="px-4 py-3 font-medium text-slate-800">{certificate().name}</td>
-      <td class="px-4 py-3 text-slate-600">{certificate().domains.join(', ')}</td>
-      <td class="px-4 py-3 text-slate-600">{certificate().provider}</td>
-      <td class="px-4 py-3">
+      <td data-label="Name" class="px-4 py-3 font-medium text-slate-800">{certificate().name}</td>
+      <td data-label="Domains" class="px-4 py-3 text-slate-600">{certificate().domains.join(', ')}</td>
+      <td data-label="Provider" class="px-4 py-3 text-slate-600">{certificate().provider}</td>
+      <td data-label="Status" class="px-4 py-3">
         <StatusBadge status={certificate().status} />
         <Show when={certificate().lastRenewalError}>
           <div class="mt-1 max-w-[16rem] truncate text-xs text-red-600" title={certificate().lastRenewalError!}>
@@ -278,8 +278,8 @@ function CertificateRow(props: { certificate: CertificateDto; onView: () => void
           </div>
         </Show>
       </td>
-      <td class={`px-4 py-3 ${expiry().tone}`}>{expiry().label}</td>
-      <td class="px-4 py-3">
+      <td data-label="Expires" class={`px-4 py-3 ${expiry().tone}`}>{expiry().label}</td>
+      <td data-label="Actions" class="px-4 py-3">
         <div class="flex items-center justify-end gap-2">
           <button class="text-xs font-medium text-slate-600 hover:text-slate-900" onClick={props.onView}>
             View
